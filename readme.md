@@ -16,12 +16,13 @@ The DBT Column Lineage Extractor is a lightweight Python-based tool for extracti
 
 - Extract column level lineage for specified model columns, including direct and recursive relationships.
 - Output results in a human-readable JSON format, which can be programmatically integrated for use cases such as data impact analysis, data tagging, etc.; or visualized with other tools.
+- Support for dbt-style model selection syntax, allowing easy selection of models and sources using familiar patterns.
 
 
 ## Installation
 ### pip installation
 ```
-pip install dbt-column-lineage-extractor==0.1.4b1
+pip install dbt-column-lineage-extractor==0.1.5b1
 ```
 
 ## Required Input Files
@@ -58,6 +59,16 @@ First, generate column lineage relationships to model's direct parents and child
 ```bash
 dbt_column_lineage_direct --manifest ./inputs/manifest.json --catalog ./inputs/catalog.json
 ```
+
+You can specify particular models using the `--model` parameter with support for dbt-style selectors:
+```bash
+dbt_column_lineage_direct --manifest ./inputs/manifest.json --catalog ./inputs/catalog.json --model +orders+
+```
+
+#### Model Selection Syntax
+
+The tool supports dbt-style model selection syntax. For detailed information on available selectors and usage examples, see the [Model Selection Syntax documentation](./docs/model_selection_syntax.md).
+
 Then analyze recursive column lineage relationships for a specific model and column using the `dbt_column_lineage_recursive` command, e.g.:
 ```bash
 dbt_column_lineage_recursive --model model.jaffle_shop.stg_orders --column order_id
@@ -130,7 +141,6 @@ The structured JSON outputs can be used programmatically, or loaded into visuali
 ![visualize](images/visualize.png)
 
 ## Limitations
-- Doesn’t support parse certain syntax, e.g. lateral flatten
-- Doesn’t support dbt python models
+- Doesn't support parse certain syntax, e.g. lateral flatten
+- Doesn't support dbt python models
 - Only tested with `snowflake` dialect so far
-

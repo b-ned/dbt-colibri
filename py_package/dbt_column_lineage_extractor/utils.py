@@ -14,6 +14,9 @@ def pretty_print_dict(dict_to_print):
 
 
 def write_dict_to_file(dict_to_write, file_path):
+    # Create directory if it doesn't exist
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+    
     with open(file_path, "w") as file:
         json.dump(dict_to_write, file, indent=4)
 

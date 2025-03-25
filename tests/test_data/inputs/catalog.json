@@ -1,0 +1,522 @@
+{
+    "metadata": {
+        "dbt_schema_version": "https://schemas.getdbt.com/dbt/catalog/v1.json",
+        "dbt_version": "1.6.5",
+        "generated_at": "2024-10-08T23:02:52.583781Z",
+        "invocation_id": "3420cecb-3a0e-419c-9869-3666fd5690a4",
+        "env": {}
+    },
+    "nodes": {
+        "seed.jaffle_shop.raw_orders": {
+            "metadata": {
+                "type": "BASE TABLE",
+                "schema": "UTIL",
+                "name": "RAW_ORDERS",
+                "database": "ANALYTICS__BUILD",
+                "comment": null,
+                "owner": "ANALYTICS__READWRITE__BUILD"
+            },
+            "columns": {
+                "ID": {
+                    "type": "NUMBER",
+                    "index": 1,
+                    "name": "ID",
+                    "comment": null
+                },
+                "USER_ID": {
+                    "type": "NUMBER",
+                    "index": 2,
+                    "name": "USER_ID",
+                    "comment": null
+                },
+                "ORDER_DATE": {
+                    "type": "DATE",
+                    "index": 3,
+                    "name": "ORDER_DATE",
+                    "comment": null
+                },
+                "STATUS": {
+                    "type": "TEXT",
+                    "index": 4,
+                    "name": "STATUS",
+                    "comment": null
+                }
+            },
+            "stats": {
+                "last_modified": {
+                    "id": "last_modified",
+                    "label": "Last Modified",
+                    "value": "2024-10-08 23:00UTC",
+                    "include": true,
+                    "description": "The timestamp for last update/change"
+                },
+                "row_count": {
+                    "id": "row_count",
+                    "label": "Row Count",
+                    "value": 99,
+                    "include": true,
+                    "description": "An approximate count of rows in this table"
+                },
+                "bytes": {
+                    "id": "bytes",
+                    "label": "Approximate Size",
+                    "value": 2048,
+                    "include": true,
+                    "description": "Approximate size of the table as reported by Snowflake"
+                },
+                "has_stats": {
+                    "id": "has_stats",
+                    "label": "Has Stats?",
+                    "value": true,
+                    "include": false,
+                    "description": "Indicates whether there are statistics for this table"
+                }
+            },
+            "unique_id": "seed.jaffle_shop.raw_orders"
+        },
+        "model.jaffle_shop.stg_orders": {
+            "metadata": {
+                "type": "VIEW",
+                "schema": "UTIL",
+                "name": "STG_ORDERS",
+                "database": "ANALYTICS__BUILD",
+                "comment": null,
+                "owner": "ANALYTICS__READWRITE__BUILD"
+            },
+            "columns": {
+                "ORDER_ID": {
+                    "type": "NUMBER",
+                    "index": 1,
+                    "name": "ORDER_ID",
+                    "comment": null
+                },
+                "CUSTOMER_ID": {
+                    "type": "NUMBER",
+                    "index": 2,
+                    "name": "CUSTOMER_ID",
+                    "comment": null
+                },
+                "ORDER_DATE": {
+                    "type": "DATE",
+                    "index": 3,
+                    "name": "ORDER_DATE",
+                    "comment": null
+                },
+                "STATUS": {
+                    "type": "TEXT",
+                    "index": 4,
+                    "name": "STATUS",
+                    "comment": null
+                }
+            },
+            "stats": {
+                "has_stats": {
+                    "id": "has_stats",
+                    "label": "Has Stats?",
+                    "value": false,
+                    "include": false,
+                    "description": "Indicates whether there are statistics for this table"
+                }
+            },
+            "unique_id": "model.jaffle_shop.stg_orders"
+        },
+        "seed.jaffle_shop.raw_customers": {
+            "metadata": {
+                "type": "BASE TABLE",
+                "schema": "UTIL",
+                "name": "RAW_CUSTOMERS",
+                "database": "ANALYTICS__BUILD",
+                "comment": null,
+                "owner": "ANALYTICS__READWRITE__BUILD"
+            },
+            "columns": {
+                "ID": {
+                    "type": "NUMBER",
+                    "index": 1,
+                    "name": "ID",
+                    "comment": null
+                },
+                "FIRST_NAME": {
+                    "type": "TEXT",
+                    "index": 2,
+                    "name": "FIRST_NAME",
+                    "comment": null
+                },
+                "LAST_NAME": {
+                    "type": "TEXT",
+                    "index": 3,
+                    "name": "LAST_NAME",
+                    "comment": null
+                }
+            },
+            "stats": {
+                "last_modified": {
+                    "id": "last_modified",
+                    "label": "Last Modified",
+                    "value": "2024-10-08 23:00UTC",
+                    "include": true,
+                    "description": "The timestamp for last update/change"
+                },
+                "row_count": {
+                    "id": "row_count",
+                    "label": "Row Count",
+                    "value": 100,
+                    "include": true,
+                    "description": "An approximate count of rows in this table"
+                },
+                "bytes": {
+                    "id": "bytes",
+                    "label": "Approximate Size",
+                    "value": 2560,
+                    "include": true,
+                    "description": "Approximate size of the table as reported by Snowflake"
+                },
+                "has_stats": {
+                    "id": "has_stats",
+                    "label": "Has Stats?",
+                    "value": true,
+                    "include": false,
+                    "description": "Indicates whether there are statistics for this table"
+                }
+            },
+            "unique_id": "seed.jaffle_shop.raw_customers"
+        },
+        "seed.jaffle_shop.raw_payments": {
+            "metadata": {
+                "type": "BASE TABLE",
+                "schema": "UTIL",
+                "name": "RAW_PAYMENTS",
+                "database": "ANALYTICS__BUILD",
+                "comment": null,
+                "owner": "ANALYTICS__READWRITE__BUILD"
+            },
+            "columns": {
+                "ID": {
+                    "type": "NUMBER",
+                    "index": 1,
+                    "name": "ID",
+                    "comment": null
+                },
+                "ORDER_ID": {
+                    "type": "NUMBER",
+                    "index": 2,
+                    "name": "ORDER_ID",
+                    "comment": null
+                },
+                "PAYMENT_METHOD": {
+                    "type": "TEXT",
+                    "index": 3,
+                    "name": "PAYMENT_METHOD",
+                    "comment": null
+                },
+                "AMOUNT": {
+                    "type": "NUMBER",
+                    "index": 4,
+                    "name": "AMOUNT",
+                    "comment": null
+                }
+            },
+            "stats": {
+                "last_modified": {
+                    "id": "last_modified",
+                    "label": "Last Modified",
+                    "value": "2024-10-08 23:00UTC",
+                    "include": true,
+                    "description": "The timestamp for last update/change"
+                },
+                "row_count": {
+                    "id": "row_count",
+                    "label": "Row Count",
+                    "value": 113,
+                    "include": true,
+                    "description": "An approximate count of rows in this table"
+                },
+                "bytes": {
+                    "id": "bytes",
+                    "label": "Approximate Size",
+                    "value": 2560,
+                    "include": true,
+                    "description": "Approximate size of the table as reported by Snowflake"
+                },
+                "has_stats": {
+                    "id": "has_stats",
+                    "label": "Has Stats?",
+                    "value": true,
+                    "include": false,
+                    "description": "Indicates whether there are statistics for this table"
+                }
+            },
+            "unique_id": "seed.jaffle_shop.raw_payments"
+        },
+        "model.jaffle_shop.stg_customers": {
+            "metadata": {
+                "type": "VIEW",
+                "schema": "UTIL",
+                "name": "STG_CUSTOMERS",
+                "database": "ANALYTICS__BUILD",
+                "comment": null,
+                "owner": "ANALYTICS__READWRITE__BUILD"
+            },
+            "columns": {
+                "CUSTOMER_ID": {
+                    "type": "NUMBER",
+                    "index": 1,
+                    "name": "CUSTOMER_ID",
+                    "comment": null
+                },
+                "FIRST_NAME": {
+                    "type": "TEXT",
+                    "index": 2,
+                    "name": "FIRST_NAME",
+                    "comment": null
+                },
+                "LAST_NAME": {
+                    "type": "TEXT",
+                    "index": 3,
+                    "name": "LAST_NAME",
+                    "comment": null
+                }
+            },
+            "stats": {
+                "has_stats": {
+                    "id": "has_stats",
+                    "label": "Has Stats?",
+                    "value": false,
+                    "include": false,
+                    "description": "Indicates whether there are statistics for this table"
+                }
+            },
+            "unique_id": "model.jaffle_shop.stg_customers"
+        },
+        "model.jaffle_shop.stg_payments": {
+            "metadata": {
+                "type": "VIEW",
+                "schema": "UTIL",
+                "name": "STG_PAYMENTS",
+                "database": "ANALYTICS__BUILD",
+                "comment": null,
+                "owner": "ANALYTICS__READWRITE__BUILD"
+            },
+            "columns": {
+                "PAYMENT_ID": {
+                    "type": "NUMBER",
+                    "index": 1,
+                    "name": "PAYMENT_ID",
+                    "comment": null
+                },
+                "ORDER_ID": {
+                    "type": "NUMBER",
+                    "index": 2,
+                    "name": "ORDER_ID",
+                    "comment": null
+                },
+                "PAYMENT_METHOD": {
+                    "type": "TEXT",
+                    "index": 3,
+                    "name": "PAYMENT_METHOD",
+                    "comment": null
+                },
+                "AMOUNT": {
+                    "type": "NUMBER",
+                    "index": 4,
+                    "name": "AMOUNT",
+                    "comment": null
+                }
+            },
+            "stats": {
+                "has_stats": {
+                    "id": "has_stats",
+                    "label": "Has Stats?",
+                    "value": false,
+                    "include": false,
+                    "description": "Indicates whether there are statistics for this table"
+                }
+            },
+            "unique_id": "model.jaffle_shop.stg_payments"
+        },
+        "model.jaffle_shop.orders": {
+            "metadata": {
+                "type": "BASE TABLE",
+                "schema": "UTIL",
+                "name": "ORDERS",
+                "database": "ANALYTICS__BUILD",
+                "comment": null,
+                "owner": "ANALYTICS__READWRITE__BUILD"
+            },
+            "columns": {
+                "ORDER_ID": {
+                    "type": "NUMBER",
+                    "index": 1,
+                    "name": "ORDER_ID",
+                    "comment": null
+                },
+                "CUSTOMER_ID": {
+                    "type": "NUMBER",
+                    "index": 2,
+                    "name": "CUSTOMER_ID",
+                    "comment": null
+                },
+                "ORDER_DATE": {
+                    "type": "DATE",
+                    "index": 3,
+                    "name": "ORDER_DATE",
+                    "comment": null
+                },
+                "STATUS": {
+                    "type": "TEXT",
+                    "index": 4,
+                    "name": "STATUS",
+                    "comment": null
+                },
+                "CREDIT_CARD_AMOUNT": {
+                    "type": "NUMBER",
+                    "index": 5,
+                    "name": "CREDIT_CARD_AMOUNT",
+                    "comment": null
+                },
+                "COUPON_AMOUNT": {
+                    "type": "NUMBER",
+                    "index": 6,
+                    "name": "COUPON_AMOUNT",
+                    "comment": null
+                },
+                "BANK_TRANSFER_AMOUNT": {
+                    "type": "NUMBER",
+                    "index": 7,
+                    "name": "BANK_TRANSFER_AMOUNT",
+                    "comment": null
+                },
+                "GIFT_CARD_AMOUNT": {
+                    "type": "NUMBER",
+                    "index": 8,
+                    "name": "GIFT_CARD_AMOUNT",
+                    "comment": null
+                },
+                "AMOUNT": {
+                    "type": "NUMBER",
+                    "index": 9,
+                    "name": "AMOUNT",
+                    "comment": null
+                }
+            },
+            "stats": {
+                "last_modified": {
+                    "id": "last_modified",
+                    "label": "Last Modified",
+                    "value": "2024-10-08 23:00UTC",
+                    "include": true,
+                    "description": "The timestamp for last update/change"
+                },
+                "row_count": {
+                    "id": "row_count",
+                    "label": "Row Count",
+                    "value": 99,
+                    "include": true,
+                    "description": "An approximate count of rows in this table"
+                },
+                "bytes": {
+                    "id": "bytes",
+                    "label": "Approximate Size",
+                    "value": 4608,
+                    "include": true,
+                    "description": "Approximate size of the table as reported by Snowflake"
+                },
+                "has_stats": {
+                    "id": "has_stats",
+                    "label": "Has Stats?",
+                    "value": true,
+                    "include": false,
+                    "description": "Indicates whether there are statistics for this table"
+                }
+            },
+            "unique_id": "model.jaffle_shop.orders"
+        },
+        "model.jaffle_shop.customers": {
+            "metadata": {
+                "type": "BASE TABLE",
+                "schema": "UTIL",
+                "name": "CUSTOMERS",
+                "database": "ANALYTICS__BUILD",
+                "comment": null,
+                "owner": "ANALYTICS__READWRITE__BUILD"
+            },
+            "columns": {
+                "CUSTOMER_ID": {
+                    "type": "NUMBER",
+                    "index": 1,
+                    "name": "CUSTOMER_ID",
+                    "comment": null
+                },
+                "FIRST_NAME": {
+                    "type": "TEXT",
+                    "index": 2,
+                    "name": "FIRST_NAME",
+                    "comment": null
+                },
+                "LAST_NAME": {
+                    "type": "TEXT",
+                    "index": 3,
+                    "name": "LAST_NAME",
+                    "comment": null
+                },
+                "FIRST_ORDER": {
+                    "type": "DATE",
+                    "index": 4,
+                    "name": "FIRST_ORDER",
+                    "comment": null
+                },
+                "MOST_RECENT_ORDER": {
+                    "type": "DATE",
+                    "index": 5,
+                    "name": "MOST_RECENT_ORDER",
+                    "comment": null
+                },
+                "NUMBER_OF_ORDERS": {
+                    "type": "NUMBER",
+                    "index": 6,
+                    "name": "NUMBER_OF_ORDERS",
+                    "comment": null
+                },
+                "CUSTOMER_LIFETIME_VALUE": {
+                    "type": "NUMBER",
+                    "index": 7,
+                    "name": "CUSTOMER_LIFETIME_VALUE",
+                    "comment": null
+                }
+            },
+            "stats": {
+                "last_modified": {
+                    "id": "last_modified",
+                    "label": "Last Modified",
+                    "value": "2024-10-08 23:00UTC",
+                    "include": true,
+                    "description": "The timestamp for last update/change"
+                },
+                "row_count": {
+                    "id": "row_count",
+                    "label": "Row Count",
+                    "value": 100,
+                    "include": true,
+                    "description": "An approximate count of rows in this table"
+                },
+                "bytes": {
+                    "id": "bytes",
+                    "label": "Approximate Size",
+                    "value": 4096,
+                    "include": true,
+                    "description": "Approximate size of the table as reported by Snowflake"
+                },
+                "has_stats": {
+                    "id": "has_stats",
+                    "label": "Has Stats?",
+                    "value": true,
+                    "include": false,
+                    "description": "Indicates whether there are statistics for this table"
+                }
+            },
+            "unique_id": "model.jaffle_shop.customers"
+        }
+    },
+    "sources": {},
+    "errors": null
+}

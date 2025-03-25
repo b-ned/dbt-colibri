@@ -13,6 +13,11 @@ li_selected_model = [
     # "model.dbt_project_1.model_2"
 ]
 
+# Alternative: You can also load models from a JSON file
+# import json
+# with open('models.json', 'r') as f:
+#     li_selected_model = json.load(f)
+
 extractor = DbtColumnLineageExtractor(
     manifest_path=manifest_path,
     catalog_path=catalog_path,
