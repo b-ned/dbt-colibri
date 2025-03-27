@@ -23,7 +23,7 @@ The DBT Column Lineage Extractor is a lightweight Python-based tool for extracti
 ## Installation
 ### pip installation
 ```
-pip install dbt-column-lineage-extractor==0.1.6b1
+pip install dbt-column-lineage-extractor==0.1.6b2
 ```
 
 ## Required Input Files
@@ -58,23 +58,23 @@ cd examples
 
 First, generate column lineage relationships to model's direct parents and children using the `dbt_column_lineage_direct` command.
 
-To scan the whole project (takes longer, but you don't need to run it again for different models if there is no model change):
-```bash
-dbt_column_lineage_direct --manifest path/to/manifest.json --catalog path/to/catalog.json
-```
+- To scan the whole project (takes longer, but you don't need to run it again for different models if there is no model change):
+  ```bash
+  dbt_column_lineage_direct --manifest path/to/manifest.json --catalog path/to/catalog.json
+  ```
 
-If only interested in specific models (faster), you can use the `--model +model_name+` parameter with support for dbt-style selectors:
-```bash
-dbt_column_lineage_direct --manifest path/to/manifest.json --catalog path/to/catalog.json --model +orders+
-```
+- If only interested in specific models (faster) and their recursive ancestors/descendants, you can use the `--model +model_name+` parameter with support for dbt-style selectors:
+  ```bash
+  dbt_column_lineage_direct --manifest path/to/manifest.json --catalog path/to/catalog.json --model +orders+
+  ```
 
 > ##### Model Selection Syntax
 > The tool supports dbt-style model selection syntax. For detailed information on available selectors and usage examples, see the [Model Selection Syntax documentation](./docs/model_selection_syntax.md).
 
-Then analyze recursive column lineage relationships for a specific model and column using the `dbt_column_lineage_recursive` command:
-```bash
-dbt_column_lineage_recursive --model model.jaffle_shop.stg_orders --column order_id
-```
+- To then analyze recursive column lineage relationships for a specific model and column using the `dbt_column_lineage_recursive` command:
+  ```bash
+  dbt_column_lineage_recursive --model model.jaffle_shop.stg_orders --column order_id
+  ```
 
 This will:
 1. Generate a detailed lineage analysis, outputting the structured lineaged in json and mermaid diagram format.
@@ -88,7 +88,8 @@ See the [readme file](./examples/readme.md) in the `examples` directory for more
 ## Outputs
 
 ### 1. Mermaid Diagrams for visualization
-The tool automatically generates a visualization using Mermaid diagrams
+The tool automatically generates a visualization using Mermaid diagrams.
+
 Example Mermaid visualization:
 
 ![mermaid_example](images/mermaid_example.png)

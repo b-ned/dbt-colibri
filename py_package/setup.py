@@ -3,19 +3,23 @@ import os
 
 # Get the absolute path of the directory containing setup.py
 here = os.path.abspath(os.path.dirname(__file__))
-# Get the absolute path of the README.md file in the parent directory
-readme_path = os.path.join(os.path.dirname(here), 'README.md')
+# Try to find README.md in the current directory first, then parent directory
+readme_same_dir = os.path.join(here, 'README.md')
+readme_parent_dir = os.path.join(os.path.dirname(here), 'README.md')
 
-# Try to read README.md, use default description if not found
-try:
-    with open(readme_path, 'r', encoding='utf-8') as f:
-        long_description = f.read()
-except (IOError, FileNotFoundError):
-    long_description = 'A package for extracting dbt column lineage - see https://github.com/canva-public/dbt-column-lineage-extractor for more details'
+# Try to read README.md from either location
+long_description = 'A package for extracting dbt column lineage - see https://github.com/canva-public/dbt-column-lineage-extractor for more details'
+for readme_path in [readme_same_dir, readme_parent_dir]:
+    try:
+        with open(readme_path, 'r', encoding='utf-8') as f:
+            long_description = f.read()
+            break
+    except (IOError, FileNotFoundError):
+        continue
 
 setup(
     name='dbt_column_lineage_extractor',
-    version='0.1.6b1',
+    version='0.1.6b2',
     description='A package for extracting dbt column lineage',
     long_description=long_description,
     long_description_content_type='text/markdown',
