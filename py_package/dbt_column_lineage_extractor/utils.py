@@ -23,3 +23,8 @@ def write_dict_to_file(dict_to_write, file_path):
 def read_dict_from_file(file_path):
     with open(file_path, "r") as file:
         return json.load(file)
+
+def find_potential_matches(lineage_data, model_name):
+    """Find potential model matches based on partial name match."""
+    model_name = model_name.lower()
+    return [model for model in lineage_data.keys() if model_name in model.lower()]

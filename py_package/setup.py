@@ -15,7 +15,7 @@ except (IOError, FileNotFoundError):
 
 setup(
     name='dbt_column_lineage_extractor',
-    version='0.1.5b1',
+    version='0.1.6b1',
     description='A package for extracting dbt column lineage',
     long_description=long_description,
     long_description_content_type='text/markdown',

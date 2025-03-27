@@ -118,12 +118,14 @@ def test_cli_direct_to_recursive_workflow(test_data_dir, temp_output_dir):
             mock_args_recursive.return_value.lineage_children_file = children_file
             mock_args_recursive.return_value.output_dir = temp_output_dir
             mock_args_recursive.return_value.show_ui = False
+            mock_args_recursive.return_value.output_format = 'json'
+            mock_args_recursive.return_value.show_details = False
             
             # Run recursive lineage CLI
             recursive_main()
             
             # Verify recursive output files exist
-            model = "model.jaffle_shop.customers"
+            model = "model.jaffle_shop.customers".replace('.', '_')
             column = "customer_id"
             ancestors_file = os.path.join(temp_output_dir, f"{model}_{column}_ancestors.json")
             descendants_file = os.path.join(temp_output_dir, f"{model}_{column}_descendants.json")

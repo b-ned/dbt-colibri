@@ -15,14 +15,15 @@ The DBT Column Lineage Extractor is a lightweight Python-based tool for extracti
 ## Features
 
 - Extract column level lineage for specified model columns, including direct and recursive relationships.
-- Output results in a human-readable JSON format, which can be programmatically integrated for use cases such as data impact analysis, data tagging, etc.; or visualized with other tools.
+- Output results in a human-readable JSON format for programmatic integration (e.g., data impact analysis, data tagging).
+- Visualization of column lineage using Mermaid diagrams
 - Support for dbt-style model selection syntax, allowing easy selection of models and sources using familiar patterns.
 
 
 ## Installation
 ### pip installation
 ```
-pip install dbt-column-lineage-extractor==0.1.5b1
+pip install dbt-column-lineage-extractor==0.1.6b1
 ```
 
 ## Required Input Files
@@ -55,60 +56,49 @@ cd examples
 
 ### Option 1 - Command Line Interface
 
-First, generate column lineage relationships to model's direct parents and children using the `dbt_column_lineage_direct` command, e.g.:
+First, generate column lineage relationships to model's direct parents and children using the `dbt_column_lineage_direct` command.
+
+To scan the whole project (takes longer, but you don't need to run it again for different models if there is no model change):
 ```bash
-dbt_column_lineage_direct --manifest ./inputs/manifest.json --catalog ./inputs/catalog.json
+dbt_column_lineage_direct --manifest path/to/manifest.json --catalog path/to/catalog.json
 ```
 
-You can specify particular models using the `--model` parameter with support for dbt-style selectors:
+If only interested in specific models (faster), you can use the `--model +model_name+` parameter with support for dbt-style selectors:
 ```bash
-dbt_column_lineage_direct --manifest ./inputs/manifest.json --catalog ./inputs/catalog.json --model +orders+
+dbt_column_lineage_direct --manifest path/to/manifest.json --catalog path/to/catalog.json --model +orders+
 ```
 
-#### Model Selection Syntax
+> ##### Model Selection Syntax
+> The tool supports dbt-style model selection syntax. For detailed information on available selectors and usage examples, see the [Model Selection Syntax documentation](./docs/model_selection_syntax.md).
 
-The tool supports dbt-style model selection syntax. For detailed information on available selectors and usage examples, see the [Model Selection Syntax documentation](./docs/model_selection_syntax.md).
-
-Then analyze recursive column lineage relationships for a specific model and column using the `dbt_column_lineage_recursive` command, e.g.:
+Then analyze recursive column lineage relationships for a specific model and column using the `dbt_column_lineage_recursive` command:
 ```bash
 dbt_column_lineage_recursive --model model.jaffle_shop.stg_orders --column order_id
 ```
+
+This will:
+1. Generate a detailed lineage analysis, outputting the structured lineaged in json and mermaid diagram format.
+2. Create a Mermaid diagram visualization in html.
 
 See more usage guides using `dbt_column_lineage_direct -h` and `dbt_column_lineage_recursive -h`.
 
 ### Option 2 - Python Scripts
 See the [readme file](./examples/readme.md) in the `examples` directory for more detailed instructions on how to integrate the DBT Column Lineage Extractor into your python scripts.
 
-##### Example Outputs
+## Outputs
 
-- `seed.jaffle_shop.raw_orders -- id`
-  - Structured Ancestors:
-    ```json
-    {}
-    ```
-  - Structured Descendants:
-    ```json
-    {
-      "model.jaffle_shop.stg_orders": {
-         "order_id": {
-               "+": {
-                  "model.jaffle_shop.customers": {
-                     "number_of_orders": {
-                           "+": {}
-                     }
-                  },
-                  "model.jaffle_shop.orders": {
-                     "order_id": {
-                           "+": {}
-                     }
-                  }
-               }
-         }
-      }
-    }
-    ```
+### 1. Mermaid Diagrams for visualization
+The tool automatically generates a visualization using Mermaid diagrams
+Example Mermaid visualization:
 
-- `model.jaffle_shop.stg_orders -- order_id`
+![mermaid_example](images/mermaid_example.png)
+
+
+### 2. JSON-based 
+The tool also outputs structured JSON that can be used for programmatic integration, data impact analysis, etc.
+
+Example JSON structure for `model.jaffle_shop.stg_orders -- order_id`
+
   - Structured Ancestors:
     ```json
     {
@@ -135,10 +125,6 @@ See the [readme file](./examples/readme.md) in the `examples` directory for more
     }
     ```
 
-## Example Visualization
-
-The structured JSON outputs can be used programmatically, or loaded into visualization tools like [jsoncrack.com](https://jsoncrack.com/editor) to visualize the column lineage relationships and dependencies.
-![visualize](images/visualize.png)
 
 ## Limitations
 - Doesn't support parse certain syntax, e.g. lateral flatten

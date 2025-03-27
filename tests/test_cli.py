@@ -69,6 +69,10 @@ def test_cli_recursive(test_data_dir, test_output_dir):
         mock_args.return_value.column = "customer_id"
         mock_args.return_value.lineage_parents_file = os.path.join(test_output_dir, "lineage_to_direct_parents.json")
         mock_args.return_value.lineage_children_file = os.path.join(test_output_dir, "lineage_to_direct_children.json")
+        mock_args.return_value.output_dir = str(test_output_dir)
+        mock_args.return_value.no_ui = True
+        mock_args.return_value.output_format = "both"
+        mock_args.return_value.show_details = False
         
         recursive_main()
 
