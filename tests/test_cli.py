@@ -23,7 +23,7 @@ def test_cli_direct_basic(test_data_dir, test_output_dir):
         mock_args.return_value.model = []
         mock_args.return_value.model_list_json = None
         mock_args.return_value.output_dir = str(test_output_dir)
-        mock_args.return_value.show_ui = False
+        mock_args.return_value.continue_on_error = False
         
         direct_main()
         
@@ -40,7 +40,7 @@ def test_cli_direct_with_specific_models(test_data_dir, test_output_dir):
         mock_args.return_value.model = ["model.jaffle_shop.customers"]
         mock_args.return_value.model_list_json = None
         mock_args.return_value.output_dir = str(test_output_dir)
-        mock_args.return_value.show_ui = False
+        mock_args.return_value.continue_on_error = False
         
         direct_main()
         
@@ -59,7 +59,7 @@ def test_cli_recursive(test_data_dir, test_output_dir):
         mock_args.return_value.model = []
         mock_args.return_value.model_list_json = None
         mock_args.return_value.output_dir = str(test_output_dir)
-        mock_args.return_value.show_ui = False
+        mock_args.return_value.continue_on_error = False
         
         direct_main()
     
@@ -89,26 +89,9 @@ def test_cli_direct_with_invalid_model_list(test_data_dir, test_output_dir):
         mock_args.return_value.model = []
         mock_args.return_value.model_list_json = invalid_model_list
         mock_args.return_value.output_dir = str(test_output_dir)
-        mock_args.return_value.show_ui = False
+        mock_args.return_value.continue_on_error = False
         
         direct_main()  # Should handle the error gracefully
-
-def test_cli_direct_with_show_ui(test_data_dir, test_output_dir, capsys):
-    """Test direct CLI with show_ui enabled"""
-    with patch('argparse.ArgumentParser.parse_args') as mock_args:
-        mock_args.return_value.manifest = os.path.join(test_data_dir, "inputs", "manifest.json")
-        mock_args.return_value.catalog = os.path.join(test_data_dir, "inputs", "catalog.json")
-        mock_args.return_value.dialect = "snowflake"
-        mock_args.return_value.model = ["model.jaffle_shop.customers"]
-        mock_args.return_value.model_list_json = None
-        mock_args.return_value.output_dir = str(test_output_dir)
-        mock_args.return_value.show_ui = True
-        
-        direct_main()
-        
-        captured = capsys.readouterr()
-        assert "Lineage to Direct Parents" in captured.out
-        assert "Lineage to Direct Children" in captured.out
 
 def test_cli_direct_with_model_list_json(test_data_dir, test_output_dir):
     """Test direct CLI with model list from JSON file"""
@@ -126,7 +109,7 @@ def test_cli_direct_with_model_list_json(test_data_dir, test_output_dir):
         mock_args.return_value.model = []  # Empty list as this should be overridden by model_list_json
         mock_args.return_value.model_list_json = model_list_path
         mock_args.return_value.output_dir = str(test_output_dir)
-        mock_args.return_value.show_ui = False
+        mock_args.return_value.continue_on_error = False
         
         direct_main()
         

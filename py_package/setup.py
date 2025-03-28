@@ -19,7 +19,7 @@ for readme_path in [readme_same_dir, readme_parent_dir]:
 
 setup(
     name='dbt_column_lineage_extractor',
-    version='0.1.6b2',
+    version='0.1.7b2',
     description='A package for extracting dbt column lineage',
     long_description=long_description,
     long_description_content_type='text/markdown',

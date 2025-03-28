@@ -4,7 +4,8 @@ from .utils import (
     read_json,
     pretty_print_dict,
     write_dict_to_file,
-    read_dict_from_file
+    read_dict_from_file,
+    setup_logging
 )
 
 __all__ = [
@@ -15,4 +16,5 @@ __all__ = [
     "pretty_print_dict",
     "write_dict_to_file",
     "read_dict_from_file",
+    "setup_logging",
 ]

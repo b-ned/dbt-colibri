@@ -2,91 +2,102 @@ import warnings
 from sqlglot.lineage import lineage, maybe_parse, SqlglotError, exp
 from . import utils
 import re
+import sqlglot
 
 
 class DbtColumnLineageExtractor:
     def __init__(self, manifest_path, catalog_path, selected_models=[], dialect="snowflake"):
+        # Set up logging
+        self.logger = utils.setup_logging()
+
+        # Read manifest and catalog files
         self.manifest = utils.read_json(manifest_path)
         self.catalog = utils.read_json(catalog_path)
         self.schema_dict = self._generate_schema_dict_from_catalog()
         self.node_mapping = self._get_dict_mapping_full_table_name_to_dbt_node()
         self.dialect = dialect
-        
+
         # Store references to parent and child maps for easy access
         self.parent_map = self.manifest.get("parent_map", {})
         self.child_map = self.manifest.get("child_map", {})
 
+        # Process selected models
+        self.selected_models = []
+
         if not selected_models:
-            # only select models from manifest nodes
+            # If no models specified, use all models in the manifest
             self.selected_models = [
-                x
-                for x in self.manifest["nodes"].keys()
-                if self.manifest["nodes"][x]["resource_type"] == "model"
+                node
+                for node in self.manifest["nodes"].keys()
+                if self.manifest["nodes"][node].get("resource_type") == "model"
             ]
         else:
-            # Parse dbt-style selectors
+            # Process selectors to get models
             self.selected_models = self._parse_selectors(selected_models)
 
     def _parse_selectors(self, selectors):
         """
         Parse dbt-style selectors to expand the list of selected models.
-        
+
         This implements a subset of dbt's node selection syntax, allowing you to select models
         using the same patterns you're familiar with from dbt commands.
-        
+
         Supported selector types:
         - Simple names: "model_name" or "model.package.model_name"
         - Source references: "source.schema.name"
-        
+
         Graph operators:
         - Ancestors: "+model_name" (include model and all its upstream/parent models)
         - Descendants: "model_name+" (include model and all its downstream/child models)
         - Both: "+model_name+" (include model, all its ancestors and all its descendants)
-        
+
         Set operators:
         - Union (OR): "model1 model2" (models matching either selector)
         - Intersection (AND): "model1,model2" (models matching both selectors)
-        
+
         Resource selectors:
         - Tags: "tag:my_tag" (models with specific tag)
         - Path: "path:models/finance" (models in specific path)
         - Package: "package:my_package" (models in specific package)
-        
+
         These selectors can be combined in complex ways, such as:
         - "tag:daily,+orders" (models tagged as 'daily' AND are also ancestors of 'orders')
         - "customers+ tag:finance" (descendants of 'customers' OR models with 'finance' tag)
-        
+
         Returns:
             list: Expanded list of model names after applying selector logic
         """
         if not selectors:
             return []
-        
+
         # If selectors is already a list of model names without any special syntax, return as is
-        if all(selector in self.manifest["nodes"] or selector in self.manifest.get("sources", {}) for selector in selectors):
+        if all(
+            selector in self.manifest["nodes"] or selector in self.manifest.get("sources", {})
+            for selector in selectors
+        ):
             return selectors
-        
+
         # Handle list of selector expressions
         expanded_models = set()
-        
+
         for selector_expr in selectors:
             # Check for intersection (comma-separated parts)
             if "," in selector_expr:
                 parts = selector_expr.split(",")
                 intersection_sets = []
-                
+
                 for part in parts:
                     # Recursively parse each part
                     part_models = self._parse_selectors([part])
                     intersection_sets.append(set(part_models))
-                
+
                 # Intersect all parts
                 if intersection_sets:
                     result = intersection_sets[0]
                     for s in intersection_sets[1:]:
                         result = result.intersection(s)
                     expanded_models.update(result)
-            
+
             # Handle union (space-separated parts)
             elif " " in selector_expr:
                 parts = selector_expr.split()
@@ -94,29 +105,31 @@ class DbtColumnLineageExtractor:
                     # Recursively parse each part
                     part_models = self._parse_selectors([part])
                     expanded_models.update(part_models)
-            
+
             # Handle tag selector: tag:my_tag
             elif selector_expr.startswith("tag:"):
                 tag = selector_expr[4:]
                 matching_models = self._get_models_by_tag(tag)
                 expanded_models.update(matching_models)
-            
+
             # Handle path selector: path:models/finance
             elif selector_expr.startswith("path:"):
                 path = selector_expr[5:]
                 matching_models = self._get_models_by_path(path)
                 expanded_models.update(matching_models)
-            
+
             # Handle package selector: package:my_package
             elif selector_expr.startswith("package:"):
                 package = selector_expr[8:]
                 matching_models = self._get_models_by_package(package)
                 expanded_models.update(matching_models)
-            
+
             # Handle both ancestors and descendants: +model_name+
             elif selector_expr.startswith("+") and selector_expr.endswith("+"):
                 model_name = selector_expr[1:-1]
-                if model_name in self.manifest["nodes"] or model_name in self.manifest.get("sources", {}):
+                if model_name in self.manifest["nodes"] or model_name in self.manifest.get(
+                    "sources", {}
+                ):
                     expanded_models.add(model_name)
                     expanded_models.update(self._get_all_ancestors(model_name))
                     expanded_models.update(self._get_all_descendants(model_name))
@@ -127,11 +140,13 @@ class DbtColumnLineageExtractor:
                         expanded_models.add(match)
                         expanded_models.update(self._get_all_ancestors(match))
                         expanded_models.update(self._get_all_descendants(match))
-            
+
             # Handle ancestors (upstream/parents): +model_name
             elif selector_expr.startswith("+"):
                 model_name = selector_expr[1:]
-                if model_name in self.manifest["nodes"] or model_name in self.manifest.get("sources", {}):
+                if model_name in self.manifest["nodes"] or model_name in self.manifest.get(
+                    "sources", {}
+                ):
                     expanded_models.add(model_name)
                     expanded_models.update(self._get_all_ancestors(model_name))
                 else:
@@ -140,11 +155,13 @@ class DbtColumnLineageExtractor:
                     for match in matches:
                         expanded_models.add(match)
                         expanded_models.update(self._get_all_ancestors(match))
-            
+
             # Handle descendants (downstream/children): model_name+
             elif selector_expr.endswith("+"):
                 model_name = selector_expr[:-1]
-                if model_name in self.manifest["nodes"] or model_name in self.manifest.get("sources", {}):
+                if model_name in self.manifest["nodes"] or model_name in self.manifest.get(
+                    "sources", {}
+                ):
                     expanded_models.add(model_name)
                     expanded_models.update(self._get_all_descendants(model_name))
                 else:
@@ -153,24 +170,29 @@ class DbtColumnLineageExtractor:
                     for match in matches:
                         expanded_models.add(match)
                         expanded_models.update(self._get_all_descendants(match))
-            
+
             # Handle direct node reference
-            elif selector_expr in self.manifest["nodes"] or selector_expr in self.manifest.get("sources", {}):
+            elif selector_expr in self.manifest["nodes"] or selector_expr in self.manifest.get(
+                "sources", {}
+            ):
                 expanded_models.add(selector_expr)
-            
+
             # Handle source reference
             elif selector_expr.startswith("source."):
                 if selector_expr in self.manifest.get("sources", {}):
                     expanded_models.add(selector_expr)
-            
+
             # Handle node name without resource type prefix
             else:
                 # Try to find the node by name
                 matching_nodes = self._resolve_node_by_name(selector_expr)
                 expanded_models.update(matching_nodes)
-        
+
+            # exclude sources after expansion
+            expanded_models = [x for x in expanded_models if not x.startswith("source.")]
+
         return list(expanded_models)
-    
+
     def _resolve_node_by_name(self, node_name):
         """Find nodes matching a name without full node path prefixes"""
         # First look for models
@@ -180,113 +202,121 @@ class DbtColumnLineageExtractor:
             if self.manifest["nodes"][node_id]["resource_type"] == "model"
             and self.manifest["nodes"][node_id]["name"] == node_name
         ]
-        
+
         # Then look for sources
         if "sources" in self.manifest:
             for source_id, source_data in self.manifest["sources"].items():
                 if source_data.get("name") == node_name:
                     matching_nodes.append(source_id)
-        
+
         return matching_nodes
-    
+
     def _get_models_by_tag(self, tag):
         """Get all models with a specific tag"""
         matching_models = []
-        
+
         # Check nodes (models, etc.)
         for node_name, node_info in self.manifest["nodes"].items():
             if node_info.get("resource_type") == "model" and tag in node_info.get("tags", []):
                 matching_models.append(node_name)
-        
+
         # Also check sources
         if "sources" in self.manifest:
             for source_name, source_info in self.manifest["sources"].items():
                 if tag in source_info.get("tags", []):
                     matching_models.append(source_name)
-                
+
         return matching_models
-    
+
     def _get_models_by_path(self, path):
         """Get all models in a specific path"""
         matching_models = []
-        
+
         # Check nodes (models, etc.)
         for node_name, node_info in self.manifest["nodes"].items():
             if node_info.get("resource_type") == "model" and path in node_info.get("path", ""):
                 matching_models.append(node_name)
-        
+
         # Also check sources
         if "sources" in self.manifest:
             for source_name, source_info in self.manifest["sources"].items():
                 if path in source_info.get("path", ""):
                     matching_models.append(source_name)
-                
+
         return matching_models
-    
+
     def _get_models_by_package(self, package):
         """Get all models in a specific package"""
         matching_models = []
-        
+
         # Check nodes (models, etc.)
         for node_name, node_info in self.manifest["nodes"].items():
-            if node_info.get("resource_type") == "model" and package == node_info.get("package_name", ""):
+            if node_info.get("resource_type") == "model" and package == node_info.get(
+                "package_name", ""
+            ):
                 matching_models.append(node_name)
-        
+
         # Also check sources
         if "sources" in self.manifest:
             for source_name, source_info in self.manifest["sources"].items():
                 if package == source_info.get("package_name", ""):
                     matching_models.append(source_name)
-                
+
         return matching_models
-    
+
     def _get_all_ancestors(self, model_name):
         """Get all ancestor models (parents) using manifest's parent_map"""
         ancestors = set()
         visited = set()
-        
+
         def collect_ancestors(node):
             if node in visited:
                 return
-            
+
             visited.add(node)
-            
+
             # Get parents from parent_map
             parents = self.parent_map.get(node, [])
             for parent in parents:
                 # Include both models and sources
-                is_model = parent in self.manifest.get("nodes", {}) and self.manifest["nodes"][parent].get("resource_type") == "model"
+                is_model = (
+                    parent in self.manifest.get("nodes", {})
+                    and self.manifest["nodes"][parent].get("resource_type") == "model"
+                )
                 is_source = parent in self.manifest.get("sources", {})
-                
+
                 if is_model or is_source:
                     ancestors.add(parent)
                     collect_ancestors(parent)
-        
+
         collect_ancestors(model_name)
         return ancestors
-    
+
     def _get_all_descendants(self, model_name):
         """Get all descendant models (children) using manifest's child_map"""
         descendants = set()
         visited = set()
-        
+
         def collect_descendants(node):
             if node in visited:
                 return
-                
+
             visited.add(node)
-            
+
             # Get children from child_map
             children = self.child_map.get(node, [])
             for child in children:
                 # Include both models and sources
-                is_model = child in self.manifest.get("nodes", {}) and self.manifest["nodes"][child].get("resource_type") == "model"
+                is_model = (
+                    child in self.manifest.get("nodes", {})
+                    and self.manifest["nodes"][child].get("resource_type") == "model"
+                )
                 is_source = child in self.manifest.get("sources", {})
-                
+
                 if is_model or is_source:
                     descendants.add(child)
                     collect_descendants(child)
-        
+
         collect_descendants(model_name)
         return descendants
 
@@ -358,21 +388,14 @@ class DbtColumnLineageExtractor:
 
     def _extract_lineage_for_model(self, model_sql, schema, model_node, selected_columns=[]):
         lineage_map = {}
+
+        # Get columns if none provided
         if not selected_columns:
             try:
-                if not model_sql or model_sql.strip() == '':
-                    warnings.warn(f"Empty SQL for model {model_node}, skipping SQL parsing")
-                    return {}
-                
-                parsed_sql = maybe_parse(model_sql, dialect=self.dialect)
-                if not parsed_sql:
-                    warnings.warn(f"Failed to parse SQL for model {model_node}, SQL might be invalid or empty")
-                    return {}
-                    
+                sql = sqlglot.parse_one(model_sql, dialect=self.dialect)
                 selected_columns = [
-                    column.name if isinstance(column, exp.Column) else column.alias
-                    for select in parsed_sql.find_all(exp.Select)
-                    for column in select.expressions
+                    column.alias_or_name.lower()
+                    for column in sql.select.expressions.expressions
                     if isinstance(column, (exp.Column, exp.Alias))
                 ]
             except Exception as e:
@@ -384,10 +407,12 @@ class DbtColumnLineageExtractor:
                 lineage_node = lineage(column_name, model_sql, schema=schema, dialect=self.dialect)
                 lineage_map[column_name] = lineage_node
             except SqlglotError as e:
-                print(f"Error processing model {model_node}, column {column_name}: {e}")
+                self.logger.error(f"Error processing model {model_node}, column {column_name}: {e}")
                 lineage_map[column_name] = []
             except Exception as e:
-                print(f"Unexpected error processing model {model_node}, column {column_name}: {e}")
+                self.logger.error(
+                    f"Unexpected error processing model {model_node}, column {column_name}: {e}"
+                )
                 lineage_map[column_name] = []
 
         return lineage_map
@@ -404,20 +429,22 @@ class DbtColumnLineageExtractor:
                 continue
 
             processed_count += 1
-            print(f"{processed_count}/{total_models} Processing model {model_node}")
+            self.logger.info(f"{processed_count}/{total_models} Processing model {model_node}")
 
             try:
                 if model_info["path"].endswith(".py"):
-                    print(f"Skipping column lineage detection for Python model {model_node}")
+                    self.logger.info(
+                        f"Skipping column lineage detection for Python model {model_node}"
+                    )
                     continue
                 if model_info["resource_type"] != "model":
-                    print(
+                    self.logger.info(
                         f"Skipping column lineage detection for {model_node} as it's not a model but a {model_info['resource_type']}"
                     )
                     continue
 
                 if "compiled_code" not in model_info or not model_info["compiled_code"]:
-                    print(f"Skipping {model_node} as it has no compiled SQL code")
+                    self.logger.info(f"Skipping {model_node} as it has no compiled SQL code")
                     continue
 
                 parent_catalog = self._get_parent_nodes_catalog(model_info)
@@ -435,12 +462,14 @@ class DbtColumnLineageExtractor:
                     lineage_map[model_node] = model_lineage
             except Exception as e:
                 error_count += 1
-                print(f"Error processing model {model_node}: {str(e)}")
-                print(f"Continuing with next model...")
+                self.logger.error(f"Error processing model {model_node}: {str(e)}")
+                self.logger.info(f"Continuing with next model...")
                 continue
 
         if error_count > 0:
-            print(f"Completed with {error_count} errors out of {processed_count} models processed")
+            self.logger.info(
+                f"Completed with {error_count} errors out of {processed_count} models processed"
+            )
         return lineage_map
 
     def get_dbt_node_from_sqlglot_table_node(self, node):
@@ -470,18 +499,18 @@ class DbtColumnLineageExtractor:
             if model_node_lower not in columns_lineage:
                 # Add any model node from lineage_map that might not be in selected_models
                 columns_lineage[model_node_lower] = {}
-                
+
             for column, node in columns.items():
                 column = column.lower()
                 if picked_columns and column not in picked_columns:
                     continue
 
                 columns_lineage[model_node_lower][column] = []
-                
+
                 # Handle the case where node is a list (empty lineage result)
                 if isinstance(node, list):
                     continue
-                    
+
                 # Process nodes with a walk method
                 for n in node.walk():
                     if n.source.key == "table":
@@ -491,7 +520,7 @@ class DbtColumnLineageExtractor:
                             and parent_columns not in columns_lineage[model_node_lower][column]
                         ):
                             columns_lineage[model_node_lower][column].append(parent_columns)
-                            
+
                 if not columns_lineage[model_node_lower][column]:
                     warnings.warn(f"No lineage found for {model_node} - {column}")
         return columns_lineage
@@ -527,45 +556,45 @@ class DbtColumnLineageExtractor:
         model_node = model_node.lower()
         if visited is None:
             visited = set()
-        
+
         related = {}
-        
+
         # Check if the model_node exists in lineage_map
         if model_node not in lineage_map:
             return related
-        
+
         # Check if the column exists in the model_node
         if column not in lineage_map[model_node]:
             return related
-        
+
         # Process each related node
         for related_node in lineage_map[model_node][column]:
             related_model = related_node["dbt_node"].lower()
             related_column = related_node["column"].lower()
-            
+
             if (related_model, related_column) not in visited:
                 visited.add((related_model, related_column))
-                
+
                 if related_model not in related:
                     related[related_model] = []
-                
+
                 if related_column not in related[related_model]:
                     related[related_model].append(related_column)
-                
+
                 # Recursively find further related columns
                 further_related = DbtColumnLineageExtractor.find_all_related(
                     lineage_map, related_model, related_column, visited
                 )
-                
+
                 # Merge the results
                 for further_model, further_columns in further_related.items():
                     if further_model not in related:
                         related[further_model] = []
-                    
+
                     for col in further_columns:
                         if col not in related[further_model]:
                             related[further_model].append(col)
-        
+
         return related
 
     @staticmethod
@@ -578,11 +607,11 @@ class DbtColumnLineageExtractor:
 
         # Initialize the related structure for the current node and column.
         related_structure = {}
-        
+
         # Return empty if model or column doesn't exist
         if model_node not in lineage_map:
             return related_structure
-            
+
         if column not in lineage_map[model_node]:
             return related_structure
 
@@ -595,10 +624,8 @@ class DbtColumnLineageExtractor:
                 visited.add((related_model, related_column))
 
                 # Recursively get the structure for each related node
-                subsequent_structure = (
-                    DbtColumnLineageExtractor.find_all_related_with_structure(
-                        lineage_map, related_model, related_column, visited
-                    )
+                subsequent_structure = DbtColumnLineageExtractor.find_all_related_with_structure(
+                    lineage_map, related_model, related_column, visited
                 )
 
                 # Use a structure to show relationships distinctly
@@ -616,7 +643,7 @@ class DBTNodeCatalog:
         # Handle cases where metadata might be missing
         if "metadata" not in node_data:
             raise ValueError(f"Node data missing metadata field: {node_data}")
-            
+
         self.database = node_data["metadata"]["database"]
         self.schema = node_data["metadata"]["schema"]
         self.name = node_data["metadata"]["name"]
