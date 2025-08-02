@@ -2,8 +2,8 @@ import os
 import json
 import pytest
 from unittest.mock import patch
-from dbt_column_lineage_extractor.cli_direct import main as direct_main
-from dbt_column_lineage_extractor.cli_recursive import main as recursive_main
+from lineage_extractor.cli_direct import main as direct_main
+from lineage_extractor.cli_recursive import main as recursive_main
 
 @pytest.fixture
 def test_data_dir():

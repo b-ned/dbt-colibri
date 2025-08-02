@@ -1,7 +1,7 @@
 import pytest
 import os
 import json
-from dbt_column_lineage_extractor import DbtColumnLineageExtractor
+from lineage_extractor import DbtColumnLineageExtractor
 from unittest.mock import patch, MagicMock
 
 

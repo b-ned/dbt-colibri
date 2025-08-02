@@ -2,9 +2,9 @@ import os
 import json
 import pytest
 import tempfile
-from dbt_column_lineage_extractor import DbtColumnLineageExtractor
-from dbt_column_lineage_extractor.cli_direct import main as direct_main
-from dbt_column_lineage_extractor.cli_recursive import main as recursive_main
+from lineage_extractor import DbtColumnLineageExtractor
+from lineage_extractor.cli_direct import main as direct_main
+from lineage_extractor.cli_recursive import main as recursive_main
 from unittest.mock import patch
 
 @pytest.fixture

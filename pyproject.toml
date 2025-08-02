@@ -1,0 +1,34 @@
+[project]
+name = "dbt-colibri"
+version = "0.1.0"
+description = "A column lineage parser and dashboarding tool"
+authors = [
+    { name="bned" }
+]
+license = { text = "MIT" }
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "requests", # example dependency
+    "sqlglot[rs]>=26.33.0",
+]
+
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.5",
+    "ruff",
+    "mypy",
+    "build",
+    "twine",
+]

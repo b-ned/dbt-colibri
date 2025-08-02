@@ -2,7 +2,7 @@ import os
 import json
 import pytest
 import tempfile
-from dbt_column_lineage_extractor.utils import (
+from lineage_extractor.utils import (
     read_json, 
     write_dict_to_file, 
     read_dict_from_file,
@@ -109,7 +109,7 @@ def test_pretty_print_dict(capsys):
 def test_clear_screen(mock_system):
     """Test the clear screen function."""
     # Import the function locally to avoid early execution
-    from dbt_column_lineage_extractor.utils import clear_screen
+    from lineage_extractor.utils import clear_screen
     
     # Call the function
     clear_screen()

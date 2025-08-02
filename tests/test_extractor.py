@@ -1,7 +1,7 @@
 import pytest
 import os
 import json
-from dbt_column_lineage_extractor import DbtColumnLineageExtractor
+from dbt_colibri.lineage_extractor.extractor import DbtColumnLineageExtractor
 from unittest.mock import patch, MagicMock
 from sqlglot.lineage import SqlglotError
 
@@ -142,7 +142,7 @@ def test_get_parent_nodes_catalog():
     parent_count = len(parent_catalog["nodes"]) + len(parent_catalog["sources"])
     assert parent_count > 0
 
-@patch('dbt_column_lineage_extractor.extractor.lineage')
+@patch('dbt_colibri.lineage_extractor.extractor.lineage')
 def test_extract_lineage_for_model(mock_lineage):
     """Test extracting lineage for a model."""
     # Mock the lineage function to return a predictable result
@@ -213,7 +213,7 @@ def test_extract_lineage_with_real_data():
     # Check that at least one column has lineage information
     assert any(lineage for lineage in lineage_map.values())
 
-@patch('dbt_column_lineage_extractor.extractor.lineage')
+@patch('dbt_colibri.lineage_extractor.extractor.lineage')
 def test_extract_lineage_error_handling(mock_lineage):
     """Test error handling during lineage extraction."""
     # Mock the lineage function to raise an error
@@ -549,7 +549,7 @@ def test_python_model_handling():
     }
     
     # Patch the read_json method to return our mock manifest and catalog
-    with patch('dbt_column_lineage_extractor.utils.read_json') as mock_read_json:
+    with patch('dbt_colibri.lineage_extractor.utils.read_json') as mock_read_json:
         mock_read_json.side_effect = [manifest, catalog]
         
         with patch.object(DbtColumnLineageExtractor, '_generate_schema_dict_from_catalog') as mock_schema:
@@ -597,7 +597,7 @@ def test_non_model_resource_handling():
     }
     
     # Patch the read_json method to return our mock manifest and catalog
-    with patch('dbt_column_lineage_extractor.utils.read_json') as mock_read_json:
+    with patch('dbt_colibri.lineage_extractor.utils.read_json') as mock_read_json:
         mock_read_json.side_effect = [manifest, catalog]
         
         with patch.object(DbtColumnLineageExtractor, '_generate_schema_dict_from_catalog') as mock_schema:
@@ -618,3 +618,64 @@ def test_non_model_resource_handling():
                 
                 # Verify that the non-model resource was skipped
                 assert lineage_map == {}
+
+
+def test_source_identifier_handling():
+    """Test that source identifiers are correctly handled in node mapping."""
+    # Create a mock manifest with a source that has an identifier
+    manifest = {
+        "nodes": {},
+        "sources": {
+            "source.project_name.source_name.some_name_table_name": {
+                "database": "DATA_BASE",
+                "schema": "SOME_SCHEMA",
+                "name": "some_name_table_name",
+                "identifier": "TALE_NAME",  # The actual table name
+                "columns": {}
+            }
+        }
+    }
+    
+    # Mock catalog to match the manifest
+    catalog = {
+        "nodes": {},
+        "sources": {
+            "source.project_name.source_name.some_name_table_name": {
+                "metadata": {
+                    "type": "BASE TABLE",
+                    "schema": "SOME_SCHEMA",
+                    "name": "TABLE_NAME",  # Note: this is the actual table name
+                    "database": "DATA_BASE"
+                },
+                "columns": {}
+            }
+        }
+    }
+    
+    # Patch the read_json method to return our mock manifest and catalog
+    with patch('dbt_colibri.lineage_extractor.utils.read_json') as mock_read_json:
+        mock_read_json.side_effect = [manifest, catalog]
+        
+        with patch.object(DbtColumnLineageExtractor, '_generate_schema_dict_from_catalog') as mock_schema:
+            mock_schema.return_value = {}
+            
+            extractor = DbtColumnLineageExtractor(
+                manifest_path="dummy_path",
+                catalog_path="dummy_path",
+                dialect="snowflake"
+            )
+            
+            # Get the node mapping
+            node_mapping = extractor._get_dict_mapping_full_table_name_to_dbt_node()
+            
+            # The key should use the identifier (actual table name) not the source name
+            expected_key = "data_base.some_schema.table_name"  # all lowercase as per implementation
+            expected_value = "source.project_name.source_name.some_name_table_name"
+            
+            assert expected_key in node_mapping, f"Expected {expected_key} in node mapping but got keys: {list(node_mapping.keys())}"
+            assert node_mapping[expected_key] == expected_value, f"Expected {expected_value} but got {node_mapping[expected_value]}"
+            
+            # Verify the source name is not used as the key
+            incorrect_key = "data_base.some_schema.some_name_table_name"
+            assert incorrect_key not in node_mapping, f"Found source name {incorrect_key} in mapping when it should use the identifier instead"
+
