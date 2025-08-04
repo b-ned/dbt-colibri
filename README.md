@@ -37,19 +37,24 @@ colibri generate
 
 By default, this will:
 
-    Look for `target/manifest.json` and `target/catalog.json`
+Look for `target/manifest.json` and `target/catalog.json`
 
-    Output the results to the `dist/` folder:
+Output the results to the `dist/` folder:
 
-        `colibri-manifest.json`: human-readable lineage data
+- `colibri-manifest.json`: lineage data
 
-        `index.html`: interactive visualization
+- `index.html`: interactive visualization
 
 ### Compatibility:
-- dbt-core == 1.10.6
-- python = 3.16
+
+- tested with python 3.9, 3.11, 3.13
 - snowflake dialect
 
+    | dbt-core Version | Tested |
+    | ---------------- | ------ |
+    | `1.8.x`            | ✅     |
+    | `1.9.x`            | ⬜️     |
+    | `1.10.x`           | ✅     |
 
 ### 🧰 Built on Open Source
 
