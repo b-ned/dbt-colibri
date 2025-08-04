@@ -2,7 +2,7 @@
 
 **dbt-colibri** is a lightweight, developer-friendly CLI tool and self-hostable dashboard that extracts and visualizes **full column-level lineage** from your `dbt-core` project — no cloud syncs, agents, or vendor lock-in required.
 
-It’s ideal for data teams who want a transparent, flexible, and open approach to lineage tracking without relying on complex enterprise tooling.
+It’s built for data teams who want a transparent, flexible, and open approach to lineage tracking without relying on complex enterprise tooling.
 
 ---
 
@@ -23,7 +23,7 @@ It’s ideal for data teams who want a transparent, flexible, and open approach 
 For local development:
 
 ```
-git clone https://github.com/your-org/dbt-colibri.git
+git clone https://github.com/b-ned/dbt-colibri.git
 cd dbt-colibri
 pip install -e .
 ```

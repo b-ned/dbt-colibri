@@ -5,6 +5,15 @@ import os
 from ..lineage_extractor.extractor import DbtColumnLineageExtractor
 from ..report.generator import DbtColibriReportGenerator
 
+
+COLIBRI_LOGO = r"""
+ ______     ______     __         __     ______     ______     __    
+/\  ___\   /\  __ \   /\ \       /\ \   /\  == \   /\  == \   /\ \   
+\ \ \____  \ \ \/\ \  \ \ \____  \ \ \  \ \  __<   \ \  __<   \ \ \  
+ \ \_____\  \ \_____\  \ \_____\  \ \_\  \ \_____\  \ \_\ \_\  \ \_\ 
+  \/_____/   \/_____/   \/_____/   \/_/   \/_____/   \/_/ /_/   \/_/ 
+"""
+
 @click.group()
 def cli():
     """dbt-colibri CLI tool"""
@@ -32,6 +41,8 @@ def cli():
 def generate_report(target_dir, manifest, catalog):
     """Generate a dbt-colibri lineage report with both JSON and HTML output."""
     try:
+        click.echo(f"{COLIBRI_LOGO}\n")
+
         if not os.path.exists(manifest):
             click.echo(f"❌ Manifest file not found at {manifest}")
             return 1

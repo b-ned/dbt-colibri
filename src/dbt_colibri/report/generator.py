@@ -213,7 +213,6 @@ class DbtColibriReportGenerator:
         json_path = target_path / "colibri-manifest.json"
         with open(json_path, "w", encoding="utf-8") as f:
             json.dump(lineage, f, indent=2)
-        print(f"✅ JSON report saved to: {json_path}")
         
         # Generate HTML with injected data
         html_template_path = Path(__file__).parent / "index.html"
@@ -225,7 +224,6 @@ class DbtColibriReportGenerator:
             template_html_path=str(html_template_path),
             output_html_path=str(html_output_path)
         )
-        print(f"✅ HTML report generated: {injected_html_path}")
         
         return lineage
 
@@ -278,9 +276,5 @@ def inject_data_into_html(
     # Write the compiled HTML
     with open(output_html_path, "w", encoding="utf-8") as f:
         f.write(compiled_html)
-    
-    print(f"✅ Successfully injected data into: {output_html_path}")
-    print(f"📊 Data size: {len(json_string)} characters")
-    print(f"🔒 Encoded size: {len(encoded_data)} characters")
     
     return str(output_html_path)
