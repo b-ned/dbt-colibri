@@ -1,9 +1,28 @@
 import warnings
-from sqlglot.lineage import lineage, maybe_parse, SqlglotError, exp
+from sqlglot.lineage import maybe_parse, SqlglotError, exp
 from . import utils
+from .lineage import lineage, prepare_scope
 import re
 import sqlglot
+from datetime import datetime, timezone
+from importlib.metadata import version, PackageNotFoundError
 
+
+def get_select_expressions(expr: exp.Expression) -> list[exp.Expression]:
+    if isinstance(expr, exp.Select):
+        return expr.expressions
+    elif isinstance(expr, exp.Subquery):
+        return get_select_expressions(expr.this)
+    elif isinstance(expr, exp.CTE):
+        return get_select_expressions(expr.this)
+    elif isinstance(expr, exp.With):
+        return get_select_expressions(expr.this)
+    elif hasattr(expr, "args") and "this" in expr.args:
+        return get_select_expressions(expr.args["this"])
+    return []
+
+def extract_column_refs(expr: exp.Expression) -> list[exp.Column]:
+    return list(expr.find_all(exp.Column))
 
 class DbtColumnLineageExtractor:
     def __init__(self, manifest_path, catalog_path, selected_models=[], dialect="snowflake"):
@@ -16,11 +35,9 @@ class DbtColumnLineageExtractor:
         self.schema_dict = self._generate_schema_dict_from_catalog()
         self.node_mapping = self._get_dict_mapping_full_table_name_to_dbt_node()
         self.dialect = dialect
-
         # Store references to parent and child maps for easy access
         self.parent_map = self.manifest.get("parent_map", {})
         self.child_map = self.manifest.get("child_map", {})
-
         # Process selected models
         self.selected_models = []
 
@@ -189,7 +206,7 @@ class DbtColumnLineageExtractor:
                 expanded_models.update(matching_nodes)
 
             # exclude sources after expansion
-            expanded_models = [x for x in expanded_models if not x.startswith("source.")]
+            expanded_models = {x for x in expanded_models if not x.startswith("source.")}
 
         return list(expanded_models)
 
@@ -350,7 +367,7 @@ class DbtColumnLineageExtractor:
         mapping = {}
         for key, node in self.manifest["nodes"].items():
             # Only include model, source, and seed nodes
-            if node.get("resource_type") in ["model", "source", "seed"]:
+            if node.get("resource_type") in ["model", "source", "seed", "snapshot"]:
                 try:
                     dbt_node = DBTNodeManifest(node)
                     mapping[dbt_node.full_table_name] = key
@@ -388,6 +405,16 @@ class DbtColumnLineageExtractor:
 
     def _extract_lineage_for_model(self, model_sql, schema, model_node, selected_columns=[]):
         lineage_map = {}
+        parsed_model_sql = maybe_parse(model_sql, dialect=self.dialect)
+        qualified_expr, scope = prepare_scope(parsed_model_sql, schema=schema, dialect=self.dialect)
+        def normalize_column_name(name: str) -> str:
+            name = name.strip('"').strip("'")
+            # Remove type casts like '::date' or '::timestamp'
+            name = re.sub(r"::\s*\w+$", "", name)
+            if name.startswith("$"):
+                name = name[1:]
+            return name.lower()
+
 
         # Get columns if none provided
         if not selected_columns:
@@ -403,12 +430,54 @@ class DbtColumnLineageExtractor:
                 return {}
 
         for column_name in selected_columns:
+            normalized_column = normalize_column_name(column_name)
             try:
-                lineage_node = lineage(column_name, model_sql, schema=schema, dialect=self.dialect)
+                lineage_node = lineage(normalized_column, qualified_expr, schema=schema, dialect=self.dialect, scope=scope)
                 lineage_map[column_name] = lineage_node
-            except SqlglotError as e:
-                self.logger.error(f"Error processing model {model_node}, column {column_name}: {e}")
-                lineage_map[column_name] = []
+            
+            except SqlglotError:
+                # Fallback: try to parse as expression and extract columns
+                try:
+                    # parsed_sql = sqlglot.parse_one(model_sql, dialect=self.dialect)
+                    parsed_sql = parsed_model_sql
+                    alias_expr_map = {}
+
+                    select_exprs = get_select_expressions(parsed_sql)
+
+                    alias_expr_map = {}
+                    for expr in select_exprs:
+                        alias = expr.alias_or_name
+                        if alias:
+                            alias_expr_map[alias.lower()] = expr
+                    expr = alias_expr_map.get(normalized_column)
+                    self.logger.info(f"Available aliases in query: {list(alias_expr_map.keys())}")
+                    if expr:
+                        upstream_columns = extract_column_refs(expr)
+                        lineage_nodes = []
+                        for col in upstream_columns:
+                            try:
+                                lineage_nodes.append(
+                                    lineage(
+                                        col.name,
+                                        qualified_expr,
+                                        schema=schema,
+                                        dialect=self.dialect,
+                                        scope=scope
+                                    )
+                                )
+                            except SqlglotError as e_inner:
+                                self.logger.error(
+                                    f"Could not resolve lineage for '{col.name}' in alias '{column_name}': {e_inner}"
+                                )
+                        lineage_map[column_name] = lineage_nodes
+                    else:
+                        self.logger.warning(f"No expression found for alias '{column_name}'")
+                        lineage_map[column_name] = []
+
+
+                except Exception as e2:
+                    self.logger.error(f"Fallback error on {column_name}: {e2}")
+                    lineage_map[column_name] = []
             except Exception as e:
                 self.logger.error(
                     f"Unexpected error processing model {model_node}, column {column_name}: {e}"
@@ -472,7 +541,7 @@ class DbtColumnLineageExtractor:
             )
         return lineage_map
 
-    def get_dbt_node_from_sqlglot_table_node(self, node):
+    def get_dbt_node_from_sqlglot_table_node(self, node, model_node):
         if node.source.key != "table":
             raise ValueError(f"Node source is not a table, but {node.source.key}")
         column_name = node.name.split(".")[-1].lower()
@@ -482,8 +551,14 @@ class DbtColumnLineageExtractor:
         if table_name in self.node_mapping:
             dbt_node = self.node_mapping[table_name].lower()
         else:
-            warnings.warn(f"Table {table_name} not found in node mapping")
-            dbt_node = f"_NOT_FOUND___{table_name.lower()}"
+            # Check if the table is hardcoded in raw code.
+            if table_name in self.manifest["nodes"][model_node]["raw_code"]:
+                dbt_node = f"_HARDCODED_REF___{table_name.lower()}"
+            elif node.source.catalog == "" and f"{node.source.db}.{node.source.name}".lower() in self.manifest["nodes"][model_node]["raw_code"]:
+                dbt_node = f"_HARDCODED_REF___{table_name.lower()}"
+            else:
+                warnings.warn(f"Table {table_name} not found in node mapping")
+                dbt_node = f"_NOT_FOUND___{table_name.lower()}"
             # raise ValueError(f"Table {table_name} not found in node mapping")
 
         return {"column": column_name, "dbt_node": dbt_node}
@@ -514,7 +589,7 @@ class DbtColumnLineageExtractor:
                 # Process nodes with a walk method
                 for n in node.walk():
                     if n.source.key == "table":
-                        parent_columns = self.get_dbt_node_from_sqlglot_table_node(n)
+                        parent_columns = self.get_dbt_node_from_sqlglot_table_node(n, model_node)
                         if (
                             parent_columns["dbt_node"] != model_node
                             and parent_columns not in columns_lineage[model_node_lower][column]
@@ -637,6 +712,23 @@ class DbtColumnLineageExtractor:
 
         return related_structure
 
+    def extract_project_lineage(self):
+        self.logger.info("Building lineage map..")
+        lineage_map = self.build_lineage_map()
+        self.logger.info("Grabbing Parents")
+        lin_parents = self.get_columns_lineage_from_sqlglot_lineage_map(lineage_map)
+        self.logger.info("Grabbing Children")
+        lin_children = self.get_lineage_to_direct_children_from_lineage_to_direct_parents(lin_parents)
+
+        output = {
+            
+            "lineage": {
+                "parents": lin_parents,
+                "children": lin_children
+            }
+        }
+
+        return output
 
 class DBTNodeCatalog:
     def __init__(self, node_data):
@@ -661,7 +753,9 @@ class DBTNodeManifest:
     def __init__(self, node_data):
         self.database = node_data["database"]
         self.schema = node_data["schema"]
-        self.name = node_data["name"]
+        # For sources, use identifier if it exists, otherwise use name
+        # identifier is the actual table name in the database
+        self.name = node_data.get("identifier", node_data["name"])
         self.columns = node_data["columns"]
 
     @property

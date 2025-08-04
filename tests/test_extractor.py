@@ -307,8 +307,29 @@ def test_get_dbt_node_from_sqlglot_table_node():
     test_table = "test_catalog.test_schema.customers"
     extractor.node_mapping[test_table] = "model.test.customers"
     
+    # Add the fully qualified table name to node mapping
+    fq_table_name = "test_catalog.test_schema.customers"
+    dbt_node_id = "model.test.customers"
+    extractor.node_mapping[fq_table_name] = dbt_node_id
+
+    # Coherent mock model_node (as from DBT manifest["nodes"])
+    mock_model_node = {
+        "unique_id": dbt_node_id,
+        "resource_type": "model",
+        "name": "customers",
+        "database": "test_catalog",
+        "schema": "test_schema",
+        "raw_code": "some sql code",
+        "columns": {
+            "customer_id": {
+                "name": "customer_id",
+                "description": "Unique customer identifier"
+            }
+        }
+    }
+
     # Test the conversion
-    result = extractor.get_dbt_node_from_sqlglot_table_node(MockNode())
+    result = extractor.get_dbt_node_from_sqlglot_table_node(MockNode(), mock_model_node)
     
     # Verify the result
     assert result
@@ -630,7 +651,7 @@ def test_source_identifier_handling():
                 "database": "DATA_BASE",
                 "schema": "SOME_SCHEMA",
                 "name": "some_name_table_name",
-                "identifier": "TALE_NAME",  # The actual table name
+                "identifier": "TABLE_NAME",  # The actual table name
                 "columns": {}
             }
         }

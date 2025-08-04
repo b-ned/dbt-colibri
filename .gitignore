@@ -153,9 +153,6 @@ cython_debug/
 
 
 .DS_Store
-lineage_to_direct_children.json
-lineage_to_direct_parents.json
-/MagicMock
-/outputs
-examples/outputs/*.html
-examples/outputs/*.mmd
+dev_data/
+main.py
+.vscode/launch.json
