@@ -57,5 +57,5 @@ jobs:
         run: uv build
 
       - name: Publish package to Test PyPI
-        run: uv publish --index testpypi
+        run: uv publish
 
