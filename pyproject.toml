@@ -13,6 +13,13 @@ dependencies = [
     "sqlglot[rs]>=26.33.0",
 ]
 
+[project]
+classifiers = [
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.13",
+]
+
 [project.scripts]
 colibri = "dbt_colibri.cli.cli:cli"
 
