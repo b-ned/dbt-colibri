@@ -57,3 +57,6 @@ jobs:
 
       - name: Publish package to Test PyPI
         run: uv publish --index testpypi
+        env:
+          UV_PUBLISH_USERNAME: __token__
+          UV_PUBLISH_PASSWORD: ${{ secrets.UV_PUBLISH_TOKEN }}
