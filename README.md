@@ -1,6 +1,6 @@
 
 
-![dbt-colibri header](https://github.com/b-ned/dbt-colibri/main/static/colibri_header.png)
+![dbt-colibri header](https://github.com/b-ned/dbt-colibri/blob/d31ece39bacf862e485233aad3e84df9a7618946/static/colibri_header.png)
 
 [![PyPI version](https://badge.fury.io/py/dbt-colibri.svg)](https://badge.fury.io/py/dbt-colibri)
 [![Python Support](https://img.shields.io/pypi/pyversions/dbt-colibri.svg)](https://pypi.org/project/dbt-colibri/)
@@ -17,7 +17,7 @@ Built for data teams who want transparent, flexible lineage tracking without ven
 - **🏠 Self-hosted**: No cloud dependencies or external services required
 
 <!-- Add a screenshot here when available -->
-![dbt-colibri dashboard](https://github.com/b-ned/dbt-colibri/main/static/ui_colibri_readme.png)
+![dbt-colibri dashboard](https://github.com/b-ned/dbt-colibri/blob/d31ece39bacf862e485233aad3e84df9a7618946/static/ui_colibri_readme.png)
 
 
 ## 🚀 Quick Start
@@ -104,7 +104,7 @@ Todo: Instructions on how to add to your CI pipeline to automatically generate a
 | dbt-core Version | Status |
 |------------------|--------|
 | 1.8.x           | ✅ Tested |
-| 1.9.x           | ⚠️ Testing in progress |
+| 1.9.x           | 🔲 Testing in progress |
 | 1.10.x          | ✅ Tested |
 
 ### Architecture
@@ -151,7 +151,6 @@ This project builds upon excellent open source work:
 
 - **Issues**: [GitHub Issues](https://github.com/your-org/dbt-colibri/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/your-org/dbt-colibri/discussions)
-- **Documentation**: [Full Documentation](https://your-org.github.io/dbt-colibri/)
 
 ---
 
