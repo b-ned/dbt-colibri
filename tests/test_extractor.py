@@ -568,7 +568,7 @@ def test_python_model_handling():
     }
     
     # Patch the read_json method to return our mock manifest and catalog
-    with patch('dbt_colibri.lineage_extractor.utils.read_json') as mock_read_json:
+    with patch('dbt_colibri.utils.json_utils.read_json') as mock_read_json:
         mock_read_json.side_effect = [manifest, catalog]
         
         with patch.object(DbtColumnLineageExtractor, '_generate_schema_dict_from_catalog') as mock_schema:
@@ -616,7 +616,7 @@ def test_non_model_resource_handling():
     }
     
     # Patch the read_json method to return our mock manifest and catalog
-    with patch('dbt_colibri.lineage_extractor.utils.read_json') as mock_read_json:
+    with patch('dbt_colibri.utils.json_utils.read_json') as mock_read_json:
         mock_read_json.side_effect = [manifest, catalog]
         
         with patch.object(DbtColumnLineageExtractor, '_generate_schema_dict_from_catalog') as mock_schema:
@@ -672,7 +672,7 @@ def test_source_identifier_handling():
     }
     
     # Patch the read_json method to return our mock manifest and catalog
-    with patch('dbt_colibri.lineage_extractor.utils.read_json') as mock_read_json:
+    with patch('dbt_colibri.utils.json_utils.read_json') as mock_read_json:
         mock_read_json.side_effect = [manifest, catalog]
         
         with patch.object(DbtColumnLineageExtractor, '_generate_schema_dict_from_catalog') as mock_schema:
