@@ -1,11 +1,10 @@
 import warnings
 from sqlglot.lineage import maybe_parse, SqlglotError, exp
-from . import utils
+from ..utils import log
+from ..utils import json_utils
 from .lineage import lineage, prepare_scope
 import re
 import sqlglot
-from datetime import datetime, timezone
-from importlib.metadata import version, PackageNotFoundError
 
 
 def get_select_expressions(expr: exp.Expression) -> list[exp.Expression]:
@@ -27,11 +26,11 @@ def extract_column_refs(expr: exp.Expression) -> list[exp.Column]:
 class DbtColumnLineageExtractor:
     def __init__(self, manifest_path, catalog_path, selected_models=[], dialect="snowflake"):
         # Set up logging
-        self.logger = utils.setup_logging()
+        self.logger = log.setup_logging()
 
         # Read manifest and catalog files
-        self.manifest = utils.read_json(manifest_path)
-        self.catalog = utils.read_json(catalog_path)
+        self.manifest = json_utils.read_json(manifest_path)
+        self.catalog = json_utils.read_json(catalog_path)
         self.schema_dict = self._generate_schema_dict_from_catalog()
         self.node_mapping = self._get_dict_mapping_full_table_name_to_dbt_node()
         self.dialect = dialect
@@ -498,22 +497,22 @@ class DbtColumnLineageExtractor:
                 continue
 
             processed_count += 1
-            self.logger.info(f"{processed_count}/{total_models} Processing model {model_node}")
+            self.logger.debug(f"{processed_count}/{total_models} Processing model {model_node}")
 
             try:
                 if model_info["path"].endswith(".py"):
-                    self.logger.info(
+                    self.logger.debug(
                         f"Skipping column lineage detection for Python model {model_node}"
                     )
                     continue
                 if model_info["resource_type"] != "model":
-                    self.logger.info(
+                    self.logger.debug(
                         f"Skipping column lineage detection for {model_node} as it's not a model but a {model_info['resource_type']}"
                     )
                     continue
 
                 if "compiled_code" not in model_info or not model_info["compiled_code"]:
-                    self.logger.info(f"Skipping {model_node} as it has no compiled SQL code")
+                    self.logger.debug(f"Skipping {model_node} as it has no compiled SQL code")
                     continue
 
                 parent_catalog = self._get_parent_nodes_catalog(model_info)
@@ -532,7 +531,7 @@ class DbtColumnLineageExtractor:
             except Exception as e:
                 error_count += 1
                 self.logger.error(f"Error processing model {model_node}: {str(e)}")
-                self.logger.info(f"Continuing with next model...")
+                self.logger.debug("Continuing with next model...")
                 continue
 
         if error_count > 0:
