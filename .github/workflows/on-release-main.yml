@@ -47,10 +47,6 @@ jobs:
         with:
           name: pyproject-toml
 
-      - name: Move downloaded file
-        run: |
-          mv pyproject.toml ./  # Ensure the downloaded file replaces the existing one
-
       - name: Install uv
         uses: astral-sh/setup-uv@v6
 
