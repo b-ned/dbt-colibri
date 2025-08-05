@@ -7,8 +7,6 @@ from importlib.metadata import version, PackageNotFoundError
 from ..lineage_extractor.extractor import DbtColumnLineageExtractor
 
 import base64
-import sys
-import os
 
 
 class DbtColibriReportGenerator:
@@ -24,6 +22,7 @@ class DbtColibriReportGenerator:
         self.extractor = extractor
         self.manifest = extractor.manifest
         self.catalog = extractor.catalog
+        self.logger = extractor.logger
         self.colibri_version = self._get_colibri_version()
     
     def _get_colibri_version(self):
@@ -35,10 +34,14 @@ class DbtColibriReportGenerator:
     def detect_model_type(self, node_id: str) -> str:
         """Detect model type based on naming conventions."""
         slug = node_id.split('.')[-1]
-        if slug.startswith("dim_"): return "dimension"
-        if slug.startswith("fact_"): return "fact"
-        if slug.startswith("int_"): return "intermediate"
-        if slug.startswith("stg_"): return "staging"
+        if slug.startswith("dim_"):
+            return "dimension"
+        if slug.startswith("fact_"):
+            return "fact"
+        if slug.startswith("int_"):
+            return "intermediate"
+        if slug.startswith("stg_"):
+            return "staging"
         return "unknown"
     
     def build_manifest_node_data(self, node_id: str) -> dict:
@@ -224,6 +227,8 @@ class DbtColibriReportGenerator:
             template_html_path=str(html_template_path),
             output_html_path=str(html_output_path)
         )
+
+        self.logger.debug(f"Injected data into HTML: {injected_html_path}")
         
         return lineage
 
@@ -276,5 +281,6 @@ def inject_data_into_html(
     # Write the compiled HTML
     with open(output_html_path, "w", encoding="utf-8") as f:
         f.write(compiled_html)
+    
     
     return str(output_html_path)

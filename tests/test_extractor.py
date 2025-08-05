@@ -1,6 +1,4 @@
 import pytest
-import os
-import json
 from dbt_colibri.lineage_extractor.extractor import DbtColumnLineageExtractor
 from unittest.mock import patch, MagicMock
 from sqlglot.lineage import SqlglotError
