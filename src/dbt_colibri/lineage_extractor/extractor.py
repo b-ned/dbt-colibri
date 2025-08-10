@@ -1,6 +1,6 @@
 import warnings
 from sqlglot.lineage import maybe_parse, SqlglotError, exp
-from ..utils import log
+import logging
 from ..utils import json_utils
 from .lineage import lineage, prepare_scope
 import re
@@ -26,7 +26,7 @@ def extract_column_refs(expr: exp.Expression) -> list[exp.Column]:
 class DbtColumnLineageExtractor:
     def __init__(self, manifest_path, catalog_path, selected_models=[], dialect="snowflake"):
         # Set up logging
-        self.logger = log.setup_logging()
+        self.logger = logging.getLogger("dbt_column_lineage")
 
         # Read manifest and catalog files
         self.manifest = json_utils.read_json(manifest_path)
@@ -570,6 +570,10 @@ class DbtColumnLineageExtractor:
 
         for model_node, columns in lineage_map.items():
             model_node_lower = model_node.lower()
+            if not self.manifest.get("parent_map", {}).get(model_node_lower) and \
+                not self.manifest.get("child_map", {}).get(model_node_lower):
+                    continue
+
             if model_node_lower not in columns_lineage:
                 # Add any model node from lineage_map that might not be in selected_models
                 columns_lineage[model_node_lower] = {}
