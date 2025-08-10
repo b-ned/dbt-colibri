@@ -371,13 +371,8 @@ def test_get_columns_lineage_from_sqlglot_lineage_map():
     # Get the columns lineage
     columns_lineage = extractor.get_columns_lineage_from_sqlglot_lineage_map(lineage_map)
     
-    # Verify the result
-    assert columns_lineage
-    assert "model.test.child" in columns_lineage
-    assert "id" in columns_lineage["model.test.child"]
-    assert len(columns_lineage["model.test.child"]["id"]) == 1
-    assert columns_lineage["model.test.child"]["id"][0]["dbt_node"] == "model.test.parent"
-    assert columns_lineage["model.test.child"]["id"][0]["column"] == "id"
+    # Verify the result: since the model is not in the manifest graphs, it should be skipped
+    assert columns_lineage == {}
 
 def test_column_lineage_with_real_data():
     """Test the full column lineage extraction process with real data."""

@@ -55,6 +55,18 @@ class DbtColibriReportGenerator:
             self.catalog.get("sources", {}).get(node_id)
         )
 
+        if not node_data:
+            return {
+                "nodeType": "unknown",
+                "rawCode": None,
+                "compiledCode": None,
+                "schema": None,
+                "description": None,
+                "contractEnforced": None,
+                "refs": [],
+                "columns": {},
+            }
+
         columns = {}
         if node_data and node_data.get("columns"):
             for col, val in node_data["columns"].items():
@@ -151,6 +163,8 @@ class DbtColibriReportGenerator:
 
         # Traverse all refs to add model-level relationships
         for node_id, node_data in self.manifest.get("nodes", {}).items():
+            if node_data.get("resource_type") in {"test", "macro"}:
+                continue  # Skip test and macro nodes
             if "refs" in node_data:
                 for ref in node_data["refs"]:
                     ref_name = ref.get("name")
@@ -170,9 +184,10 @@ class DbtColibriReportGenerator:
                         })
 
         # Build all nodes (even if disconnected)
-        all_ids = set(self.manifest.get("nodes", {}).keys()).union(
-            self.manifest.get("sources", {}).keys()
-        )
+        all_ids = {
+            node_id for node_id, data in self.manifest.get("nodes", {}).items()
+            if data.get("resource_type") not in {"test", "macro"}
+        }.union(self.manifest.get("sources", {}).keys())
         for node_id in all_ids:
             ensure_node(node_id)
 
