@@ -45,7 +45,7 @@ class DbtColumnLineageExtractor:
             self.selected_models = [
                 node
                 for node in self.manifest["nodes"].keys()
-                if self.manifest["nodes"][node].get("resource_type") == "model"
+                if self.manifest["nodes"][node].get("resource_type") in ("model", "snapshot")
             ]
         else:
             # Process selectors to get models
@@ -505,7 +505,7 @@ class DbtColumnLineageExtractor:
                         f"Skipping column lineage detection for Python model {model_node}"
                     )
                     continue
-                if model_info["resource_type"] != "model":
+                if model_info["resource_type"] not in ["model", "snapshot"]:
                     self.logger.debug(
                         f"Skipping column lineage detection for {model_node} as it's not a model but a {model_info['resource_type']}"
                     )
@@ -551,9 +551,9 @@ class DbtColumnLineageExtractor:
             dbt_node = self.node_mapping[table_name].lower()
         else:
             # Check if the table is hardcoded in raw code.
-            if table_name in self.manifest["nodes"][model_node]["raw_code"]:
+            if table_name.lower() in self.manifest["nodes"][model_node]["raw_code"].lower():
                 dbt_node = f"_HARDCODED_REF___{table_name.lower()}"
-            elif node.source.catalog == "" and f"{node.source.db}.{node.source.name}".lower() in self.manifest["nodes"][model_node]["raw_code"]:
+            elif node.source.catalog == "" and f"{node.source.db}.{node.source.name}".lower() in self.manifest["nodes"][model_node]["raw_code"].lower():
                 dbt_node = f"_HARDCODED_REF___{table_name.lower()}"
             else:
                 warnings.warn(f"Table {table_name} not found in node mapping")
@@ -600,7 +600,7 @@ class DbtColumnLineageExtractor:
                             columns_lineage[model_node_lower][column].append(parent_columns)
 
                 if not columns_lineage[model_node_lower][column]:
-                    warnings.warn(f"No lineage found for {model_node} - {column}")
+                    self.logger.debug(f"No lineage found for {model_node} - {column}")
         return columns_lineage
 
     def get_lineage_to_direct_children_from_lineage_to_direct_parents(

@@ -56,8 +56,13 @@ class DbtColibriReportGenerator:
         )
 
         if not node_data:
+            node_type = "unknown"
+            if node_id.startswith("_HARDCODED_REF___"):
+                node_type = "hardcoded"
+            elif node_id.startswith("_NOT_FOUND___."):
+                node_type = "not_found"
             return {
-                "nodeType": "unknown",
+                "nodeType": node_type,
                 "rawCode": None,
                 "compiledCode": None,
                 "schema": None,
