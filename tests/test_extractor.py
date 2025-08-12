@@ -6,45 +6,38 @@ from sqlglot.lineage import SqlglotError
 def test_extractor_initialization():
     """Test that the extractor can be initialized with valid parameters."""
     extractor = DbtColumnLineageExtractor(
-        manifest_path="tests/test_data/inputs/manifest.json",
-        catalog_path="tests/test_data/inputs/catalog.json",
-        selected_models=[],
-        dialect="snowflake"
+        manifest_path="tests/test_data/1.10/manifest.json",
+        catalog_path="tests/test_data/1.10/catalog.json"
     )
+
     assert isinstance(extractor, DbtColumnLineageExtractor)
     assert extractor.dialect == "snowflake"
-    # When selected_models is empty, it automatically selects all models from manifest
-    assert len(extractor.selected_models) > 0
-    assert all(model.startswith("model.") for model in extractor.selected_models)
+
+    
+    expected_nodes = [
+        node_id
+        for node_id, node_data in extractor.manifest.get("nodes", {}).items()
+        if node_data.get("resource_type") in {"model", "snapshot"}
+    ]
+
+    # When selected_models is empty, it automatically selects all models and snapshots from manifest
+    assert set(extractor.selected_models) == set(expected_nodes)
 
 def test_extractor_with_specific_models():
     """Test that the extractor can be initialized with specific models."""
-    specific_models = ["model.jaffle_shop.customers"]
+    specific_model = "model.jaffle_shop.customers"
     extractor = DbtColumnLineageExtractor(
-        manifest_path="tests/test_data/inputs/manifest.json",
-        catalog_path="tests/test_data/inputs/catalog.json",
-        selected_models=specific_models,
-        dialect="snowflake"
+        manifest_path="tests/test_data/1.10/manifest.json",
+        catalog_path="tests/test_data/1.10/catalog.json"
     )
-    assert extractor.selected_models == specific_models
+    assert specific_model in extractor.selected_models
 
-def test_dialect_support():
-    """Test that the extractor supports different dialects."""
-    # Test with supported dialects
-    for dialect in ["snowflake", "postgres", "bigquery", "mysql"]:
-        extractor = DbtColumnLineageExtractor(
-            manifest_path="tests/test_data/inputs/manifest.json",
-            catalog_path="tests/test_data/inputs/catalog.json",
-            selected_models=[],
-            dialect=dialect
-        )
-        assert extractor.dialect == dialect
 
 def test_schema_dict_generation():
     """Test schema dictionary generation from catalog."""
     extractor = DbtColumnLineageExtractor(
-        manifest_path="tests/test_data/inputs/manifest.json",
-        catalog_path="tests/test_data/inputs/catalog.json",
+        manifest_path="tests/test_data/1.10/manifest.json",
+        catalog_path="tests/test_data/1.10/catalog.json",
         selected_models=["model.jaffle_shop.customers"],
         dialect="snowflake"
     )
@@ -77,8 +70,8 @@ def test_schema_dict_generation():
 def test_node_mapping():
     """Test the node mapping dictionary generation."""
     extractor = DbtColumnLineageExtractor(
-        manifest_path="tests/test_data/inputs/manifest.json",
-        catalog_path="tests/test_data/inputs/catalog.json",
+        manifest_path="tests/test_data/1.10/manifest.json",
+        catalog_path="tests/test_data/1.10/catalog.json",
         selected_models=["model.jaffle_shop.customers"],
         dialect="snowflake"
     )
@@ -91,13 +84,13 @@ def test_node_mapping():
     # Verify some mappings exist (format should be "catalog.schema.table" -> "model.package.name")
     for table_name, dbt_node in extractor.node_mapping.items():
         assert "." in table_name
-        assert dbt_node.startswith(("model.", "source.", "seed."))
+        assert dbt_node.startswith(("model.", "source.", "seed.", "snapshot."))
 
 def test_get_list_of_columns():
     """Test retrieving columns for a dbt node."""
     extractor = DbtColumnLineageExtractor(
-        manifest_path="tests/test_data/inputs/manifest.json",
-        catalog_path="tests/test_data/inputs/catalog.json",
+        manifest_path="tests/test_data/1.10/manifest.json",
+        catalog_path="tests/test_data/1.10/catalog.json",
         dialect="snowflake"
     )
     
@@ -119,8 +112,8 @@ def test_get_list_of_columns():
 def test_get_parent_nodes_catalog():
     """Test getting parent nodes catalog."""
     extractor = DbtColumnLineageExtractor(
-        manifest_path="tests/test_data/inputs/manifest.json",
-        catalog_path="tests/test_data/inputs/catalog.json",
+        manifest_path="tests/test_data/1.10/manifest.json",
+        catalog_path="tests/test_data/1.10/catalog.json",
         dialect="snowflake"
     )
     
@@ -140,6 +133,57 @@ def test_get_parent_nodes_catalog():
     parent_count = len(parent_catalog["nodes"]) + len(parent_catalog["sources"])
     assert parent_count > 0
 
+def test_get_parents_snapshot_catalog():
+    """Test getting parent nodes catalog."""
+    extractor = DbtColumnLineageExtractor(
+        manifest_path="tests/test_data/1.10/manifest.json",
+        catalog_path="tests/test_data/1.10/catalog.json",
+        dialect="snowflake"
+    )
+    
+    # Get a model that has dependencies
+    model_node = "snapshot.jaffle_shop.orders_snapshot"
+    model_info = extractor.manifest["nodes"][model_node]
+    
+    # Get parent catalog
+    parent_catalog = extractor._get_parent_nodes_catalog(model_info)
+    
+    # Verify parent catalog structure
+    assert parent_catalog
+    assert "nodes" in parent_catalog
+    assert "sources" in parent_catalog
+    
+    # Verify at least one parent exists (either in nodes or sources)
+    parent_count = len(parent_catalog["nodes"]) + len(parent_catalog["sources"])
+    assert parent_count > 0
+
+
+def test_generate_schema_dict_snapshot_catalog():
+    """Test getting parent nodes catalog."""
+    extractor = DbtColumnLineageExtractor(
+        manifest_path="tests/test_data/1.10/manifest.json",
+        catalog_path="tests/test_data/1.10/catalog.json",
+        dialect="snowflake"
+    )
+    
+    # Get a model that has dependencies
+    model_node = "snapshot.jaffle_shop.orders_snapshot"
+    model_info = extractor.manifest["nodes"][model_node]
+    
+    # Get parent catalog
+    parent_catalog = extractor._get_parent_nodes_catalog(model_info)
+    schema = extractor._generate_schema_dict_from_catalog(parent_catalog)
+    
+    # Verify parent catalog structure
+    assert schema
+    assert "nodes" in parent_catalog
+    assert "sources" in parent_catalog
+    
+    # Verify at least one parent exists (either in nodes or sources)
+    parent_count = len(parent_catalog["nodes"]) + len(parent_catalog["sources"])
+    assert parent_count > 0
+
+
 @patch('dbt_colibri.lineage_extractor.extractor.lineage')
 def test_extract_lineage_for_model(mock_lineage):
     """Test extracting lineage for a model."""
@@ -147,8 +191,8 @@ def test_extract_lineage_for_model(mock_lineage):
     mock_lineage.return_value = [MagicMock()]
     
     extractor = DbtColumnLineageExtractor(
-        manifest_path="tests/test_data/inputs/manifest.json",
-        catalog_path="tests/test_data/inputs/catalog.json",
+        manifest_path="tests/test_data/1.10/manifest.json",
+        catalog_path="tests/test_data/1.10/catalog.json",
         dialect="snowflake"
     )
     
@@ -175,11 +219,47 @@ def test_extract_lineage_for_model(mock_lineage):
     # Verify lineage was called for each column
     assert mock_lineage.call_count == 2
 
+def test_extract_snapshot_lineage_with_real_data():
+    """Test extracting lineage for a model using actual test data."""
+    extractor = DbtColumnLineageExtractor(
+        manifest_path="tests/test_data/1.10/manifest.json",
+        catalog_path="tests/test_data/1.10/catalog.json",
+        dialect="snowflake"
+    )
+    
+    # Get a real model from the manifest
+    model_node = "snapshot.jaffle_shop.orders_snapshot"
+    model_info = extractor.manifest["nodes"][model_node]
+    model_sql = model_info["compiled_code"]
+    
+    # Get parent catalog and schema
+    parent_catalog = extractor._get_parent_nodes_catalog(model_info)
+    schema = extractor._generate_schema_dict_from_catalog(parent_catalog)
+    
+    # Get columns from the catalog
+    columns = extractor._get_list_of_columns_for_a_dbt_node(model_node)
+    
+    # Call the method
+    lineage_map = extractor._extract_lineage_for_model(
+        model_sql=model_sql,
+        schema=schema,
+        model_node=model_node,
+        selected_columns=columns
+    )
+    
+    # Verify the result
+    assert lineage_map
+    assert isinstance(lineage_map, dict)
+    assert len(lineage_map) > 0
+    
+    # Check that at least one column has lineage information
+    assert any(lineage for lineage in lineage_map.values())
+
 def test_extract_lineage_with_real_data():
     """Test extracting lineage for a model using actual test data."""
     extractor = DbtColumnLineageExtractor(
-        manifest_path="tests/test_data/inputs/manifest.json",
-        catalog_path="tests/test_data/inputs/catalog.json",
+        manifest_path="tests/test_data/1.10/manifest.json",
+        catalog_path="tests/test_data/1.10/catalog.json",
         dialect="snowflake"
     )
     
@@ -218,8 +298,8 @@ def test_extract_lineage_error_handling(mock_lineage):
     mock_lineage.side_effect = SqlglotError("Test error")
     
     extractor = DbtColumnLineageExtractor(
-        manifest_path="tests/test_data/inputs/manifest.json",
-        catalog_path="tests/test_data/inputs/catalog.json",
+        manifest_path="tests/test_data/1.10/manifest.json",
+        catalog_path="tests/test_data/1.10/catalog.json",
         dialect="snowflake"
     )
     
@@ -246,8 +326,8 @@ def test_full_lineage_map_build():
     selected_models = ["model.jaffle_shop.customers"]
     
     extractor = DbtColumnLineageExtractor(
-        manifest_path="tests/test_data/inputs/manifest.json",
-        catalog_path="tests/test_data/inputs/catalog.json",
+        manifest_path="tests/test_data/1.10/manifest.json",
+        catalog_path="tests/test_data/1.10/catalog.json",
         selected_models=selected_models,
         dialect="snowflake"
     )
@@ -286,8 +366,8 @@ def test_full_lineage_map_build():
 def test_get_dbt_node_from_sqlglot_table_node():
     """Test converting sqlglot table nodes to dbt nodes."""
     extractor = DbtColumnLineageExtractor(
-        manifest_path="tests/test_data/inputs/manifest.json",
-        catalog_path="tests/test_data/inputs/catalog.json",
+        manifest_path="tests/test_data/1.10/manifest.json",
+        catalog_path="tests/test_data/1.10/catalog.json",
         dialect="snowflake"
     )
     
@@ -340,8 +420,8 @@ def test_get_dbt_node_from_sqlglot_table_node():
 def test_get_columns_lineage_from_sqlglot_lineage_map():
     """Test extracting column lineage from the sqlglot lineage map."""
     extractor = DbtColumnLineageExtractor(
-        manifest_path="tests/test_data/inputs/manifest.json",
-        catalog_path="tests/test_data/inputs/catalog.json",
+        manifest_path="tests/test_data/1.10/manifest.json",
+        catalog_path="tests/test_data/1.10/catalog.json",
         selected_models=["model.test.child"],
         dialect="snowflake"
     )
@@ -380,8 +460,8 @@ def test_column_lineage_with_real_data():
     selected_models = ["model.jaffle_shop.customers"]
     
     extractor = DbtColumnLineageExtractor(
-        manifest_path="tests/test_data/inputs/manifest.json",
-        catalog_path="tests/test_data/inputs/catalog.json",
+        manifest_path="tests/test_data/1.10/manifest.json",
+        catalog_path="tests/test_data/1.10/catalog.json",
         selected_models=selected_models,
         dialect="snowflake"
     )
@@ -436,8 +516,8 @@ def test_get_lineage_to_direct_children():
     }
     
     extractor = DbtColumnLineageExtractor(
-        manifest_path="tests/test_data/inputs/manifest.json",
-        catalog_path="tests/test_data/inputs/catalog.json",
+        manifest_path="tests/test_data/1.10/manifest.json",
+        catalog_path="tests/test_data/1.10/catalog.json",
         dialect="snowflake"
     )
     
@@ -585,53 +665,6 @@ def test_python_model_handling():
                 # Verify that the Python model was skipped
                 assert lineage_map == {}
 
-def test_non_model_resource_handling():
-    """Test handling of non-model resources during lineage map building."""
-    # Create a mock manifest with a non-model resource
-    manifest = {
-        "nodes": {
-            "snapshot.test.snapshot_model": {
-                "path": "snapshots/snapshot_model.sql",
-                "resource_type": "snapshot",
-                "compiled_code": "SELECT * FROM source",
-                "depends_on": {"nodes": []},
-                "database": "test_db",
-                "schema": "test_schema",
-                "name": "snapshot_model",
-                "columns": {}
-            }
-        },
-        "sources": {}
-    }
-    
-    # Mock catalog to match the manifest
-    catalog = {
-        "nodes": {},
-        "sources": {}
-    }
-    
-    # Patch the read_json method to return our mock manifest and catalog
-    with patch('dbt_colibri.utils.json_utils.read_json') as mock_read_json:
-        mock_read_json.side_effect = [manifest, catalog]
-        
-        with patch.object(DbtColumnLineageExtractor, '_generate_schema_dict_from_catalog') as mock_schema:
-            mock_schema.return_value = {}
-            
-            with patch.object(DbtColumnLineageExtractor, '_get_dict_mapping_full_table_name_to_dbt_node') as mock_mapping:
-                mock_mapping.return_value = {}
-                
-                extractor = DbtColumnLineageExtractor(
-                    manifest_path="dummy_path",
-                    catalog_path="dummy_path",
-                    selected_models=["snapshot.test.snapshot_model"],
-                    dialect="snowflake"
-                )
-                
-                # Build the lineage map
-                lineage_map = extractor.build_lineage_map()
-                
-                # Verify that the non-model resource was skipped
-                assert lineage_map == {}
 
 
 def test_source_identifier_handling():

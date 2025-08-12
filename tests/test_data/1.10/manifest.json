@@ -2,8 +2,8 @@
     "metadata": {
         "dbt_schema_version": "https://schemas.getdbt.com/dbt/manifest/v12.json",
         "dbt_version": "1.10.6",
-        "generated_at": "2025-08-11T05:50:21.621848Z",
-        "invocation_id": "649b8c6b-1d42-443b-b177-fa845059275f",
+        "generated_at": "2025-08-12T04:48:06.431193Z",
+        "invocation_id": "7bd48c72-590c-4582-ad42-1f3f3996e496",
         "invocation_started_at": "2025-08-04T20:40:23.271723+00:00",
         "env": {},
         "project_name": "jaffle_shop",
@@ -126,7 +126,11 @@
                     "source.jaffle_shop.ecom.raw_products"
                 ]
             },
-            "compiled_path": null,
+            "compiled_path": "target/compiled/jaffle_shop/models/staging/stg_products.sql",
+            "compiled": true,
+            "compiled_code": "with\n\nsource as (\n\n    select * from TEST_DB.raw.raw_products\n\n),\n\nrenamed as (\n\n    select\n\n        ----------  ids\n        sku as product_id,\n\n        ---------- text\n        name as product_name,\n        type as product_type,\n        description as product_description,\n\n\n        ---------- numerics\n        (price / 100)::numeric(16, 2) as product_price,\n\n        ---------- booleans\n        coalesce(type = 'jaffle', false) as is_food_item,\n\n        coalesce(type = 'beverage', false) as is_drink_item\n\n    from source\n\n)\n\nselect * from renamed",
+            "extra_ctes_injected": true,
+            "extra_ctes": [],
             "contract": {
                 "enforced": false,
                 "alias_types": true,
@@ -250,7 +254,11 @@
                     "source.jaffle_shop.ecom.raw_orders"
                 ]
             },
-            "compiled_path": null,
+            "compiled_path": "target/compiled/jaffle_shop/models/staging/stg_orders.sql",
+            "compiled": true,
+            "compiled_code": "with\n\nsource as (\n\n    select * from TEST_DB.raw.raw_orders\n\n),\n\nrenamed as (\n\n    select\n\n        ----------  ids\n        id as order_id,\n        store_id as location_id,\n        customer as customer_id,\n\n        ---------- numerics\n        subtotal as subtotal_cents,\n        tax_paid as tax_paid_cents,\n        order_total as order_total_cents,\n        (subtotal / 100)::numeric(16, 2) as subtotal,\n        (tax_paid / 100)::numeric(16, 2) as tax_paid,\n        (order_total / 100)::numeric(16, 2) as order_total,\n\n        ---------- timestamps\n        date_trunc('day', ordered_at) as ordered_at\n\n    from source\n\n)\n\nselect * from renamed",
+            "extra_ctes_injected": true,
+            "extra_ctes": [],
             "contract": {
                 "enforced": false,
                 "alias_types": true,
@@ -386,7 +394,11 @@
                     "source.jaffle_shop.ecom.raw_items"
                 ]
             },
-            "compiled_path": null,
+            "compiled_path": "target/compiled/jaffle_shop/models/staging/stg_order_items.sql",
+            "compiled": true,
+            "compiled_code": "with\n\nsource as (\n\n    select * from TEST_DB.raw.raw_items\n\n),\n\nrenamed as (\n\n    select\n\n        ----------  ids\n        id as order_item_id,\n        order_id,\n        sku as product_id\n\n    from source\n\n)\n\nselect * from renamed",
+            "extra_ctes_injected": true,
+            "extra_ctes": [],
             "contract": {
                 "enforced": false,
                 "alias_types": true,
@@ -399,127 +411,6 @@
             "deprecation_date": null,
             "primary_key": [
                 "order_item_id"
-            ],
-            "time_spine": null
-        },
-        "model.jaffle_shop.stg_customers": {
-            "database": "TEST_DB",
-            "schema": "PUBLIC",
-            "name": "stg_customers",
-            "resource_type": "model",
-            "package_name": "jaffle_shop",
-            "path": "staging/stg_customers.sql",
-            "original_file_path": "models/staging/stg_customers.sql",
-            "unique_id": "model.jaffle_shop.stg_customers",
-            "fqn": [
-                "jaffle_shop",
-                "staging",
-                "stg_customers"
-            ],
-            "alias": "stg_customers",
-            "checksum": {
-                "name": "sha256",
-                "checksum": "37b269b48f94b4526ee48b7123397b9a2f457266e97bf5b876b988cbce9eeef6"
-            },
-            "config": {
-                "enabled": true,
-                "alias": null,
-                "schema": null,
-                "database": null,
-                "tags": [],
-                "meta": {},
-                "group": null,
-                "materialized": "view",
-                "incremental_strategy": null,
-                "batch_size": null,
-                "lookback": 1,
-                "begin": null,
-                "persist_docs": {},
-                "post-hook": [],
-                "pre-hook": [],
-                "quoting": {},
-                "column_types": {},
-                "full_refresh": null,
-                "unique_key": null,
-                "on_schema_change": "ignore",
-                "on_configuration_change": "apply",
-                "grants": {},
-                "packages": [],
-                "docs": {
-                    "show": true,
-                    "node_color": null
-                },
-                "contract": {
-                    "enforced": false,
-                    "alias_types": true
-                },
-                "event_time": null,
-                "concurrent_batches": null,
-                "access": "protected",
-                "freshness": null
-            },
-            "tags": [],
-            "description": "Customer data with basic cleaning and transformation applied, one row per customer.",
-            "columns": {
-                "customer_id": {
-                    "name": "customer_id",
-                    "description": "The unique key for each customer.",
-                    "meta": {},
-                    "data_type": null,
-                    "constraints": [],
-                    "quote": null,
-                    "config": {
-                        "meta": {},
-                        "tags": []
-                    },
-                    "tags": [],
-                    "granularity": null,
-                    "doc_blocks": []
-                }
-            },
-            "meta": {},
-            "group": null,
-            "docs": {
-                "show": true,
-                "node_color": null
-            },
-            "patch_path": "jaffle_shop://models/staging/stg_customers.yml",
-            "build_path": null,
-            "unrendered_config": {
-                "materialized": "view"
-            },
-            "created_at": 1754340025.2709353,
-            "relation_name": "TEST_DB.PUBLIC.stg_customers",
-            "raw_code": "with\n\nsource as (\n\n    select * from {{ source('ecom', 'raw_customers') }}\n\n),\n\nrenamed as (\n\n    select\n\n        ----------  ids\n        id as customer_id,\n\n        ---------- text\n        name as customer_name\n\n    from source\n\n)\n\nselect * from renamed",
-            "doc_blocks": [],
-            "language": "sql",
-            "refs": [],
-            "sources": [
-                [
-                    "ecom",
-                    "raw_customers"
-                ]
-            ],
-            "metrics": [],
-            "depends_on": {
-                "macros": [],
-                "nodes": [
-                    "source.jaffle_shop.ecom.raw_customers"
-                ]
-            },
-            "compiled_path": null,
-            "contract": {
-                "enforced": false,
-                "alias_types": true,
-                "checksum": null
-            },
-            "access": "protected",
-            "constraints": [],
-            "version": null,
-            "latest_version": null,
-            "deprecation_date": null,
-            "primary_key": [
-                "customer_id"
             ],
             "time_spine": null
         },
@@ -630,7 +521,11 @@
                     "source.jaffle_shop.ecom.raw_stores"
                 ]
             },
-            "compiled_path": null,
+            "compiled_path": "target/compiled/jaffle_shop/models/staging/stg_locations.sql",
+            "compiled": true,
+            "compiled_code": "with\n\nsource as (\n\n    select * from TEST_DB.raw.raw_stores\n\n),\n\nrenamed as (\n\n    select\n\n        ----------  ids\n        id as location_id,\n\n        ---------- text\n        name as location_name,\n\n        ---------- numerics\n        tax_rate,\n\n        ---------- timestamps\n        date_trunc('day', opened_at) as opened_date\n\n    from source\n\n)\n\nselect * from renamed",
+            "extra_ctes_injected": true,
+            "extra_ctes": [],
             "contract": {
                 "enforced": false,
                 "alias_types": true,
@@ -754,7 +649,11 @@
                     "source.jaffle_shop.ecom.raw_supplies"
                 ]
             },
-            "compiled_path": null,
+            "compiled_path": "target/compiled/jaffle_shop/models/staging/stg_supplies.sql",
+            "compiled": true,
+            "compiled_code": "with\n\nsource as (\n\n    select * from TEST_DB.raw.raw_supplies\n\n),\n\nrenamed as (\n\n    select\n\n        ----------  ids\n        md5(cast(coalesce(cast(id as TEXT), '_dbt_utils_surrogate_key_null_') || '-' || coalesce(cast(sku as TEXT), '_dbt_utils_surrogate_key_null_') as TEXT)) as supply_uuid,\n        id as supply_id,\n        sku as product_id,\n\n        ---------- text\n        name as supply_name,\n\n        ---------- numerics\n        (cost / 100)::numeric(16, 2) as supply_cost,\n\n        ---------- booleans\n        perishable as is_perishable_supply\n\n    from source\n\n)\n\nselect * from renamed",
+            "extra_ctes_injected": true,
+            "extra_ctes": [],
             "contract": {
                 "enforced": false,
                 "alias_types": true,
@@ -909,7 +808,11 @@
                     "model.jaffle_shop.stg_supplies"
                 ]
             },
-            "compiled_path": null,
+            "compiled_path": "target/compiled/jaffle_shop/models/marts/order_items.sql",
+            "compiled": true,
+            "compiled_code": "with\n\norder_items as (\n\n    select * from TEST_DB.PUBLIC.stg_order_items\n\n),\n\n\norders as (\n\n    select * from TEST_DB.PUBLIC.stg_orders\n\n),\n\nproducts as (\n\n    select * from TEST_DB.PUBLIC.stg_products\n\n),\n\nsupplies as (\n\n    select * from TEST_DB.PUBLIC.stg_supplies\n\n),\n\norder_supplies_summary as (\n\n    select\n        product_id,\n\n        sum(supply_cost) as supply_cost\n\n    from supplies\n\n    group by 1\n\n),\n\njoined as (\n\n    select\n        order_items.*,\n\n        orders.ordered_at,\n\n        products.product_name,\n        products.product_price,\n        products.is_food_item,\n        products.is_drink_item,\n\n        order_supplies_summary.supply_cost\n\n    from order_items\n\n    left join orders on order_items.order_id = orders.order_id\n\n    left join products on order_items.product_id = products.product_id\n\n    left join order_supplies_summary\n        on order_items.product_id = order_supplies_summary.product_id\n\n)\n\nselect * from joined",
+            "extra_ctes_injected": true,
+            "extra_ctes": [],
             "contract": {
                 "enforced": false,
                 "alias_types": true,
@@ -1015,7 +918,11 @@
                     "model.jaffle_shop.stg_locations"
                 ]
             },
-            "compiled_path": null,
+            "compiled_path": "target/compiled/jaffle_shop/models/marts/locations.sql",
+            "compiled": true,
+            "compiled_code": "with\n\nlocations as (\n\n    select * from TEST_DB.PUBLIC.stg_locations\n\n)\n\nselect * from locations",
+            "extra_ctes_injected": true,
+            "extra_ctes": [],
             "contract": {
                 "enforced": false,
                 "alias_types": true,
@@ -1113,7 +1020,11 @@
                 ],
                 "nodes": []
             },
-            "compiled_path": null,
+            "compiled_path": "target/compiled/jaffle_shop/models/marts/metricflow_time_spine.sql",
+            "compiled": true,
+            "compiled_code": "-- metricflow_time_spine.sql\nwith\n\ndays as (\n\n    --for BQ adapters use \"DATE('01/01/2000','mm/dd/yyyy')\"\n    \n    with date_spine as\n(\n\n    \n\n\n\n\n\nwith rawdata as (\n\n    \n\n    \n\n    with p as (\n        select 0 as generated_number union all select 1\n    ), unioned as (\n\n    select\n\n    \n    p0.generated_number * power(2, 0)\n     + \n    \n    p1.generated_number * power(2, 1)\n     + \n    \n    p2.generated_number * power(2, 2)\n     + \n    \n    p3.generated_number * power(2, 3)\n     + \n    \n    p4.generated_number * power(2, 4)\n     + \n    \n    p5.generated_number * power(2, 5)\n     + \n    \n    p6.generated_number * power(2, 6)\n     + \n    \n    p7.generated_number * power(2, 7)\n     + \n    \n    p8.generated_number * power(2, 8)\n     + \n    \n    p9.generated_number * power(2, 9)\n     + \n    \n    p10.generated_number * power(2, 10)\n     + \n    \n    p11.generated_number * power(2, 11)\n    \n    \n    + 1\n    as generated_number\n\n    from\n\n    \n    p as p0\n     cross join \n    \n    p as p1\n     cross join \n    \n    p as p2\n     cross join \n    \n    p as p3\n     cross join \n    \n    p as p4\n     cross join \n    \n    p as p5\n     cross join \n    \n    p as p6\n     cross join \n    \n    p as p7\n     cross join \n    \n    p as p8\n     cross join \n    \n    p as p9\n     cross join \n    \n    p as p10\n     cross join \n    \n    p as p11\n    \n    \n\n    )\n\n    select *\n    from unioned\n    where generated_number <= 3651\n    order by generated_number\n\n\n\n),\n\nall_periods as (\n\n    select (\n        \n\n    dateadd(\n        day,\n        (row_number() over (order by 1) - 1),\n        \n\n    dateadd(\n        day,\n        -3650,\n        cast(convert_timezone('UTC', 'America/Los_Angeles',\n    cast(convert_timezone('UTC', current_timestamp()) as timestamp)\n) as date)\n        )\n\n\n        )\n\n\n    ) as date_day\n    from rawdata\n\n),\n\nfiltered as (\n\n    select *\n    from all_periods\n    where date_day <= cast(\n\n    dateadd(\n        day,\n        1,\n        cast(convert_timezone('UTC', 'America/Los_Angeles',\n    cast(convert_timezone('UTC', current_timestamp()) as timestamp)\n) as date)\n        )\n\n as date)\n\n)\n\nselect * from filtered\n\n\n\n)\nselect\n    cast(d.date_day as timestamp) as date_day\nfrom\n    date_spine d\n\n\n\n),\n\ncast_to_date as (\n\n    select cast(date_day as date) as date_day\n\n    from days\n\n)\n\nselect * from cast_to_date",
+            "extra_ctes_injected": true,
+            "extra_ctes": [],
             "contract": {
                 "enforced": false,
                 "alias_types": true,
@@ -1217,7 +1128,11 @@
                     "model.jaffle_shop.stg_products"
                 ]
             },
-            "compiled_path": null,
+            "compiled_path": "target/compiled/jaffle_shop/models/marts/products.sql",
+            "compiled": true,
+            "compiled_code": "with\n\nproducts as (\n\n    select * from TEST_DB.PUBLIC.stg_products\n\n)\n\nselect * from products",
+            "extra_ctes_injected": true,
+            "extra_ctes": [],
             "contract": {
                 "enforced": false,
                 "alias_types": true,
@@ -1321,7 +1236,11 @@
                     "model.jaffle_shop.stg_supplies"
                 ]
             },
-            "compiled_path": null,
+            "compiled_path": "target/compiled/jaffle_shop/models/marts/supplies.sql",
+            "compiled": true,
+            "compiled_code": "with\n\nsupplies as (\n\n    select * from TEST_DB.PUBLIC.stg_supplies\n\n)\n\nselect * from supplies",
+            "extra_ctes_injected": true,
+            "extra_ctes": [],
             "contract": {
                 "enforced": false,
                 "alias_types": true,
@@ -1400,13 +1319,18 @@
             "metrics": [],
             "depends_on": {
                 "macros": [
-                    "macro.dbt.test_not_null"
+                    "macro.dbt.test_not_null",
+                    "macro.dbt.get_where_subquery"
                 ],
                 "nodes": [
                     "model.jaffle_shop.stg_order_items"
                 ]
             },
-            "compiled_path": null,
+            "compiled_path": "target/compiled/jaffle_shop/models/staging/stg_order_items.yml/not_null_stg_order_items_order_item_id.sql",
+            "compiled": true,
+            "compiled_code": "\n    \n    \n\n\n\nselect order_item_id\nfrom TEST_DB.PUBLIC.stg_order_items\nwhere order_item_id is null\n\n\n",
+            "extra_ctes_injected": true,
+            "extra_ctes": [],
             "contract": {
                 "enforced": false,
                 "alias_types": true,
@@ -1489,13 +1413,18 @@
             "metrics": [],
             "depends_on": {
                 "macros": [
-                    "macro.dbt.test_unique"
+                    "macro.dbt.test_unique",
+                    "macro.dbt.get_where_subquery"
                 ],
                 "nodes": [
                     "model.jaffle_shop.stg_order_items"
                 ]
             },
-            "compiled_path": null,
+            "compiled_path": "target/compiled/jaffle_shop/models/staging/stg_order_items.yml/unique_stg_order_items_order_item_id.sql",
+            "compiled": true,
+            "compiled_code": "\n    \n    \n\nselect\n    order_item_id as unique_field,\n    count(*) as n_records\n\nfrom TEST_DB.PUBLIC.stg_order_items\nwhere order_item_id is not null\ngroup by order_item_id\nhaving count(*) > 1\n\n\n",
+            "extra_ctes_injected": true,
+            "extra_ctes": [],
             "contract": {
                 "enforced": false,
                 "alias_types": true,
@@ -1578,13 +1507,18 @@
             "metrics": [],
             "depends_on": {
                 "macros": [
-                    "macro.dbt.test_not_null"
+                    "macro.dbt.test_not_null",
+                    "macro.dbt.get_where_subquery"
                 ],
                 "nodes": [
                     "model.jaffle_shop.stg_order_items"
                 ]
             },
-            "compiled_path": null,
+            "compiled_path": "target/compiled/jaffle_shop/models/staging/stg_order_items.yml/not_null_stg_order_items_order_id.sql",
+            "compiled": true,
+            "compiled_code": "\n    \n    \n\n\n\nselect order_id\nfrom TEST_DB.PUBLIC.stg_order_items\nwhere order_id is null\n\n\n",
+            "extra_ctes_injected": true,
+            "extra_ctes": [],
             "contract": {
                 "enforced": false,
                 "alias_types": true,
@@ -1682,7 +1616,11 @@
                     "model.jaffle_shop.stg_order_items"
                 ]
             },
-            "compiled_path": null,
+            "compiled_path": "target/compiled/jaffle_shop/models/staging/stg_order_items.yml/relationships_stg_order_items_b3d7cdbd08ebfad01e3226c01c10bba0.sql",
+            "compiled": true,
+            "compiled_code": "\n    \n    \n\nwith child as (\n    select order_id as from_field\n    from TEST_DB.PUBLIC.stg_order_items\n    where order_id is not null\n),\n\nparent as (\n    select order_id as to_field\n    from TEST_DB.PUBLIC.stg_orders\n)\n\nselect\n    from_field\n\nfrom child\nleft join parent\n    on child.from_field = parent.to_field\n\nwhere parent.to_field is null\n\n\n",
+            "extra_ctes_injected": true,
+            "extra_ctes": [],
             "contract": {
                 "enforced": false,
                 "alias_types": true,
@@ -1698,184 +1636,6 @@
                     "field": "order_id",
                     "column_name": "order_id",
                     "model": "{{ get_where_subquery(ref('stg_order_items')) }}"
-                },
-                "namespace": null
-            }
-        },
-        "test.jaffle_shop.not_null_stg_customers_customer_id.e2cfb1f9aa": {
-            "database": "TEST_DB",
-            "schema": "PUBLIC",
-            "name": "not_null_stg_customers_customer_id",
-            "resource_type": "test",
-            "package_name": "jaffle_shop",
-            "path": "not_null_stg_customers_customer_id.sql",
-            "original_file_path": "models/staging/stg_customers.yml",
-            "unique_id": "test.jaffle_shop.not_null_stg_customers_customer_id.e2cfb1f9aa",
-            "fqn": [
-                "jaffle_shop",
-                "staging",
-                "not_null_stg_customers_customer_id"
-            ],
-            "alias": "not_null_stg_customers_customer_id",
-            "checksum": {
-                "name": "none",
-                "checksum": ""
-            },
-            "config": {
-                "enabled": true,
-                "alias": null,
-                "schema": "dbt_test__audit",
-                "database": null,
-                "tags": [],
-                "meta": {},
-                "group": null,
-                "materialized": "test",
-                "severity": "ERROR",
-                "store_failures": null,
-                "store_failures_as": null,
-                "where": null,
-                "limit": null,
-                "fail_calc": "count(*)",
-                "warn_if": "!= 0",
-                "error_if": "!= 0"
-            },
-            "tags": [],
-            "description": "",
-            "columns": {},
-            "meta": {},
-            "group": null,
-            "docs": {
-                "show": true,
-                "node_color": null
-            },
-            "patch_path": null,
-            "build_path": null,
-            "unrendered_config": {},
-            "created_at": 1754340025.2715824,
-            "relation_name": null,
-            "raw_code": "{{ test_not_null(**_dbt_generic_test_kwargs) }}",
-            "doc_blocks": [],
-            "language": "sql",
-            "refs": [
-                {
-                    "name": "stg_customers",
-                    "package": null,
-                    "version": null
-                }
-            ],
-            "sources": [],
-            "metrics": [],
-            "depends_on": {
-                "macros": [
-                    "macro.dbt.test_not_null"
-                ],
-                "nodes": [
-                    "model.jaffle_shop.stg_customers"
-                ]
-            },
-            "compiled_path": null,
-            "contract": {
-                "enforced": false,
-                "alias_types": true,
-                "checksum": null
-            },
-            "column_name": "customer_id",
-            "file_key_name": "models.stg_customers",
-            "attached_node": "model.jaffle_shop.stg_customers",
-            "test_metadata": {
-                "name": "not_null",
-                "kwargs": {
-                    "column_name": "customer_id",
-                    "model": "{{ get_where_subquery(ref('stg_customers')) }}"
-                },
-                "namespace": null
-            }
-        },
-        "test.jaffle_shop.unique_stg_customers_customer_id.c7614daada": {
-            "database": "TEST_DB",
-            "schema": "PUBLIC",
-            "name": "unique_stg_customers_customer_id",
-            "resource_type": "test",
-            "package_name": "jaffle_shop",
-            "path": "unique_stg_customers_customer_id.sql",
-            "original_file_path": "models/staging/stg_customers.yml",
-            "unique_id": "test.jaffle_shop.unique_stg_customers_customer_id.c7614daada",
-            "fqn": [
-                "jaffle_shop",
-                "staging",
-                "unique_stg_customers_customer_id"
-            ],
-            "alias": "unique_stg_customers_customer_id",
-            "checksum": {
-                "name": "none",
-                "checksum": ""
-            },
-            "config": {
-                "enabled": true,
-                "alias": null,
-                "schema": "dbt_test__audit",
-                "database": null,
-                "tags": [],
-                "meta": {},
-                "group": null,
-                "materialized": "test",
-                "severity": "ERROR",
-                "store_failures": null,
-                "store_failures_as": null,
-                "where": null,
-                "limit": null,
-                "fail_calc": "count(*)",
-                "warn_if": "!= 0",
-                "error_if": "!= 0"
-            },
-            "tags": [],
-            "description": "",
-            "columns": {},
-            "meta": {},
-            "group": null,
-            "docs": {
-                "show": true,
-                "node_color": null
-            },
-            "patch_path": null,
-            "build_path": null,
-            "unrendered_config": {},
-            "created_at": 1754340025.272828,
-            "relation_name": null,
-            "raw_code": "{{ test_unique(**_dbt_generic_test_kwargs) }}",
-            "doc_blocks": [],
-            "language": "sql",
-            "refs": [
-                {
-                    "name": "stg_customers",
-                    "package": null,
-                    "version": null
-                }
-            ],
-            "sources": [],
-            "metrics": [],
-            "depends_on": {
-                "macros": [
-                    "macro.dbt.test_unique"
-                ],
-                "nodes": [
-                    "model.jaffle_shop.stg_customers"
-                ]
-            },
-            "compiled_path": null,
-            "contract": {
-                "enforced": false,
-                "alias_types": true,
-                "checksum": null
-            },
-            "column_name": "customer_id",
-            "file_key_name": "models.stg_customers",
-            "attached_node": "model.jaffle_shop.stg_customers",
-            "test_metadata": {
-                "name": "unique",
-                "kwargs": {
-                    "column_name": "customer_id",
-                    "model": "{{ get_where_subquery(ref('stg_customers')) }}"
                 },
                 "namespace": null
             }
@@ -1945,13 +1705,18 @@
             "metrics": [],
             "depends_on": {
                 "macros": [
-                    "macro.dbt.test_not_null"
+                    "macro.dbt.test_not_null",
+                    "macro.dbt.get_where_subquery"
                 ],
                 "nodes": [
                     "model.jaffle_shop.stg_locations"
                 ]
             },
-            "compiled_path": null,
+            "compiled_path": "target/compiled/jaffle_shop/models/staging/stg_locations.yml/not_null_stg_locations_location_id.sql",
+            "compiled": true,
+            "compiled_code": "\n    \n    \n\n\n\nselect location_id\nfrom TEST_DB.PUBLIC.stg_locations\nwhere location_id is null\n\n\n",
+            "extra_ctes_injected": true,
+            "extra_ctes": [],
             "contract": {
                 "enforced": false,
                 "alias_types": true,
@@ -2034,13 +1799,18 @@
             "metrics": [],
             "depends_on": {
                 "macros": [
-                    "macro.dbt.test_unique"
+                    "macro.dbt.test_unique",
+                    "macro.dbt.get_where_subquery"
                 ],
                 "nodes": [
                     "model.jaffle_shop.stg_locations"
                 ]
             },
-            "compiled_path": null,
+            "compiled_path": "target/compiled/jaffle_shop/models/staging/stg_locations.yml/unique_stg_locations_location_id.sql",
+            "compiled": true,
+            "compiled_code": "\n    \n    \n\nselect\n    location_id as unique_field,\n    count(*) as n_records\n\nfrom TEST_DB.PUBLIC.stg_locations\nwhere location_id is not null\ngroup by location_id\nhaving count(*) > 1\n\n\n",
+            "extra_ctes_injected": true,
+            "extra_ctes": [],
             "contract": {
                 "enforced": false,
                 "alias_types": true,
@@ -2123,13 +1893,18 @@
             "metrics": [],
             "depends_on": {
                 "macros": [
-                    "macro.dbt.test_not_null"
+                    "macro.dbt.test_not_null",
+                    "macro.dbt.get_where_subquery"
                 ],
                 "nodes": [
                     "model.jaffle_shop.stg_supplies"
                 ]
             },
-            "compiled_path": null,
+            "compiled_path": "target/compiled/jaffle_shop/models/staging/stg_supplies.yml/not_null_stg_supplies_supply_uuid.sql",
+            "compiled": true,
+            "compiled_code": "\n    \n    \n\n\n\nselect supply_uuid\nfrom TEST_DB.PUBLIC.stg_supplies\nwhere supply_uuid is null\n\n\n",
+            "extra_ctes_injected": true,
+            "extra_ctes": [],
             "contract": {
                 "enforced": false,
                 "alias_types": true,
@@ -2212,13 +1987,18 @@
             "metrics": [],
             "depends_on": {
                 "macros": [
-                    "macro.dbt.test_unique"
+                    "macro.dbt.test_unique",
+                    "macro.dbt.get_where_subquery"
                 ],
                 "nodes": [
                     "model.jaffle_shop.stg_supplies"
                 ]
             },
-            "compiled_path": null,
+            "compiled_path": "target/compiled/jaffle_shop/models/staging/stg_supplies.yml/unique_stg_supplies_supply_uuid.sql",
+            "compiled": true,
+            "compiled_code": "\n    \n    \n\nselect\n    supply_uuid as unique_field,\n    count(*) as n_records\n\nfrom TEST_DB.PUBLIC.stg_supplies\nwhere supply_uuid is not null\ngroup by supply_uuid\nhaving count(*) > 1\n\n\n",
+            "extra_ctes_injected": true,
+            "extra_ctes": [],
             "contract": {
                 "enforced": false,
                 "alias_types": true,
@@ -2301,13 +2081,18 @@
             "metrics": [],
             "depends_on": {
                 "macros": [
-                    "macro.dbt.test_not_null"
+                    "macro.dbt.test_not_null",
+                    "macro.dbt.get_where_subquery"
                 ],
                 "nodes": [
                     "model.jaffle_shop.stg_orders"
                 ]
             },
-            "compiled_path": null,
+            "compiled_path": "target/compiled/jaffle_shop/models/staging/stg_orders.yml/not_null_stg_orders_order_id.sql",
+            "compiled": true,
+            "compiled_code": "\n    \n    \n\n\n\nselect order_id\nfrom TEST_DB.PUBLIC.stg_orders\nwhere order_id is null\n\n\n",
+            "extra_ctes_injected": true,
+            "extra_ctes": [],
             "contract": {
                 "enforced": false,
                 "alias_types": true,
@@ -2390,13 +2175,18 @@
             "metrics": [],
             "depends_on": {
                 "macros": [
-                    "macro.dbt.test_unique"
+                    "macro.dbt.test_unique",
+                    "macro.dbt.get_where_subquery"
                 ],
                 "nodes": [
                     "model.jaffle_shop.stg_orders"
                 ]
             },
-            "compiled_path": null,
+            "compiled_path": "target/compiled/jaffle_shop/models/staging/stg_orders.yml/unique_stg_orders_order_id.sql",
+            "compiled": true,
+            "compiled_code": "\n    \n    \n\nselect\n    order_id as unique_field,\n    count(*) as n_records\n\nfrom TEST_DB.PUBLIC.stg_orders\nwhere order_id is not null\ngroup by order_id\nhaving count(*) > 1\n\n\n",
+            "extra_ctes_injected": true,
+            "extra_ctes": [],
             "contract": {
                 "enforced": false,
                 "alias_types": true,
@@ -2488,7 +2278,11 @@
                     "model.jaffle_shop.stg_orders"
                 ]
             },
-            "compiled_path": null,
+            "compiled_path": "target/compiled/jaffle_shop/models/staging/stg_orders.yml/dbt_utils_expression_is_true_s_fc9f3efa92425b23fb62ee5a96c17e3f.sql",
+            "compiled": true,
+            "compiled_code": "\n\n\n\nselect\n    1\nfrom TEST_DB.PUBLIC.stg_orders\n\nwhere not(order_total - tax_paid = subtotal)\n\n",
+            "extra_ctes_injected": true,
+            "extra_ctes": [],
             "contract": {
                 "enforced": false,
                 "alias_types": true,
@@ -2571,13 +2365,18 @@
             "metrics": [],
             "depends_on": {
                 "macros": [
-                    "macro.dbt.test_not_null"
+                    "macro.dbt.test_not_null",
+                    "macro.dbt.get_where_subquery"
                 ],
                 "nodes": [
                     "model.jaffle_shop.stg_products"
                 ]
             },
-            "compiled_path": null,
+            "compiled_path": "target/compiled/jaffle_shop/models/staging/stg_products.yml/not_null_stg_products_product_id.sql",
+            "compiled": true,
+            "compiled_code": "\n    \n    \n\n\n\nselect product_id\nfrom TEST_DB.PUBLIC.stg_products\nwhere product_id is null\n\n\n",
+            "extra_ctes_injected": true,
+            "extra_ctes": [],
             "contract": {
                 "enforced": false,
                 "alias_types": true,
@@ -2660,13 +2459,18 @@
             "metrics": [],
             "depends_on": {
                 "macros": [
-                    "macro.dbt.test_unique"
+                    "macro.dbt.test_unique",
+                    "macro.dbt.get_where_subquery"
                 ],
                 "nodes": [
                     "model.jaffle_shop.stg_products"
                 ]
             },
-            "compiled_path": null,
+            "compiled_path": "target/compiled/jaffle_shop/models/staging/stg_products.yml/unique_stg_products_product_id.sql",
+            "compiled": true,
+            "compiled_code": "\n    \n    \n\nselect\n    product_id as unique_field,\n    count(*) as n_records\n\nfrom TEST_DB.PUBLIC.stg_products\nwhere product_id is not null\ngroup by product_id\nhaving count(*) > 1\n\n\n",
+            "extra_ctes_injected": true,
+            "extra_ctes": [],
             "contract": {
                 "enforced": false,
                 "alias_types": true,
@@ -2749,13 +2553,18 @@
             "metrics": [],
             "depends_on": {
                 "macros": [
-                    "macro.dbt.test_not_null"
+                    "macro.dbt.test_not_null",
+                    "macro.dbt.get_where_subquery"
                 ],
                 "nodes": [
                     "model.jaffle_shop.order_items"
                 ]
             },
-            "compiled_path": null,
+            "compiled_path": "target/compiled/jaffle_shop/models/marts/order_items.yml/not_null_order_items_order_item_id.sql",
+            "compiled": true,
+            "compiled_code": "\n    \n    \n\n\n\nselect order_item_id\nfrom TEST_DB.PUBLIC.order_items\nwhere order_item_id is null\n\n\n",
+            "extra_ctes_injected": true,
+            "extra_ctes": [],
             "contract": {
                 "enforced": false,
                 "alias_types": true,
@@ -2838,13 +2647,18 @@
             "metrics": [],
             "depends_on": {
                 "macros": [
-                    "macro.dbt.test_unique"
+                    "macro.dbt.test_unique",
+                    "macro.dbt.get_where_subquery"
                 ],
                 "nodes": [
                     "model.jaffle_shop.order_items"
                 ]
             },
-            "compiled_path": null,
+            "compiled_path": "target/compiled/jaffle_shop/models/marts/order_items.yml/unique_order_items_order_item_id.sql",
+            "compiled": true,
+            "compiled_code": "\n    \n    \n\nselect\n    order_item_id as unique_field,\n    count(*) as n_records\n\nfrom TEST_DB.PUBLIC.order_items\nwhere order_item_id is not null\ngroup by order_item_id\nhaving count(*) > 1\n\n\n",
+            "extra_ctes_injected": true,
+            "extra_ctes": [],
             "contract": {
                 "enforced": false,
                 "alias_types": true,
@@ -2940,7 +2754,11 @@
                     "model.jaffle_shop.order_items"
                 ]
             },
-            "compiled_path": null,
+            "compiled_path": "target/compiled/jaffle_shop/models/marts/order_items.yml/relationships_order_items_order_id__order_id__ref_orders_.sql",
+            "compiled": true,
+            "compiled_code": "\n    \n    \n\nwith child as (\n    select order_id as from_field\n    from TEST_DB.PUBLIC.order_items\n    where order_id is not null\n),\n\nparent as (\n    select order_id as to_field\n    from TEST_DB.PUBLIC.orders\n)\n\nselect\n    from_field\n\nfrom child\nleft join parent\n    on child.from_field = parent.to_field\n\nwhere parent.to_field is null\n\n\n",
+            "extra_ctes_injected": true,
+            "extra_ctes": [],
             "contract": {
                 "enforced": false,
                 "alias_types": true,
@@ -3162,7 +2980,11 @@
                     "model.jaffle_shop.order_items"
                 ]
             },
-            "compiled_path": null,
+            "compiled_path": "target/compiled/jaffle_shop/models/marts/orders.sql",
+            "compiled": true,
+            "compiled_code": "with\n\norders as (\n\n    select * from TEST_DB.PUBLIC.stg_orders\n\n),\n\norder_items as (\n\n    select * from TEST_DB.PUBLIC.order_items\n\n),\n\norder_items_summary as (\n\n    select\n        order_id,\n\n        sum(supply_cost) as order_cost,\n        sum(product_price) as order_items_subtotal,\n        count(order_item_id) as count_order_items,\n        sum(\n            case\n                when is_food_item then 1\n                else 0\n            end\n        ) as count_food_items,\n        sum(\n            case\n                when is_drink_item then 1\n                else 0\n            end\n        ) as count_drink_items\n\n    from order_items\n\n    group by 1\n\n),\n\ncompute_booleans as (\n\n    select\n        orders.*,\n\n        order_items_summary.order_cost,\n        order_items_summary.order_items_subtotal,\n        order_items_summary.count_food_items,\n        order_items_summary.count_drink_items,\n        order_items_summary.count_order_items,\n        order_items_summary.count_food_items > 0 as is_food_order,\n        order_items_summary.count_drink_items > 0 as is_drink_order\n\n    from orders\n\n    left join\n        order_items_summary\n        on orders.order_id = order_items_summary.order_id\n\n),\n\ncustomer_order_count as (\n\n    select\n        *,\n\n        row_number() over (\n            partition by customer_id\n            order by ordered_at asc\n        ) as customer_order_number\n\n    from compute_booleans\n\n)\n\nselect *, current_timestamp() as updated_at from customer_order_count",
+            "extra_ctes_injected": true,
+            "extra_ctes": [],
             "contract": {
                 "enforced": false,
                 "alias_types": true,
@@ -3255,7 +3077,7 @@
                 "node_color": null
             },
             "patch_path": null,
-            "build_path": "target/run/jaffle_shop/snapshots/orders_snapshot.sql",
+            "build_path": null,
             "unrendered_config": {
                 "unique_key": "order_id",
                 "strategy": "timestamp",
@@ -3357,13 +3179,18 @@
             "metrics": [],
             "depends_on": {
                 "macros": [
-                    "macro.dbt.test_not_null"
+                    "macro.dbt.test_not_null",
+                    "macro.dbt.get_where_subquery"
                 ],
                 "nodes": [
                     "model.jaffle_shop.orders"
                 ]
             },
-            "compiled_path": null,
+            "compiled_path": "target/compiled/jaffle_shop/models/marts/orders.yml/not_null_orders_order_id.sql",
+            "compiled": true,
+            "compiled_code": "\n    \n    \n\n\n\nselect order_id\nfrom TEST_DB.PUBLIC.orders\nwhere order_id is null\n\n\n",
+            "extra_ctes_injected": true,
+            "extra_ctes": [],
             "contract": {
                 "enforced": false,
                 "alias_types": true,
@@ -3446,13 +3273,18 @@
             "metrics": [],
             "depends_on": {
                 "macros": [
-                    "macro.dbt.test_unique"
+                    "macro.dbt.test_unique",
+                    "macro.dbt.get_where_subquery"
                 ],
                 "nodes": [
                     "model.jaffle_shop.orders"
                 ]
             },
-            "compiled_path": null,
+            "compiled_path": "target/compiled/jaffle_shop/models/marts/orders.yml/unique_orders_order_id.sql",
+            "compiled": true,
+            "compiled_code": "\n    \n    \n\nselect\n    order_id as unique_field,\n    count(*) as n_records\n\nfrom TEST_DB.PUBLIC.orders\nwhere order_id is not null\ngroup by order_id\nhaving count(*) > 1\n\n\n",
+            "extra_ctes_injected": true,
+            "extra_ctes": [],
             "contract": {
                 "enforced": false,
                 "alias_types": true,
@@ -3550,7 +3382,11 @@
                     "model.jaffle_shop.orders"
                 ]
             },
-            "compiled_path": null,
+            "compiled_path": "target/compiled/jaffle_shop/models/marts/orders.yml/relationships_orders_0389c224a99a98c0b58aedb753f052f0.sql",
+            "compiled": true,
+            "compiled_code": "\n    \n    \n\nwith child as (\n    select customer_id as from_field\n    from TEST_DB.PUBLIC.orders\n    where customer_id is not null\n),\n\nparent as (\n    select customer_id as to_field\n    from TEST_DB.PUBLIC.stg_customers\n)\n\nselect\n    from_field\n\nfrom child\nleft join parent\n    on child.from_field = parent.to_field\n\nwhere parent.to_field is null\n\n\n",
+            "extra_ctes_injected": true,
+            "extra_ctes": [],
             "contract": {
                 "enforced": false,
                 "alias_types": true,
@@ -3644,7 +3480,11 @@
                     "model.jaffle_shop.orders"
                 ]
             },
-            "compiled_path": null,
+            "compiled_path": "target/compiled/jaffle_shop/models/marts/orders.yml/dbt_utils_expression_is_true_o_c0acd0b625f5605c61af04356663a823.sql",
+            "compiled": true,
+            "compiled_code": "\n\n\n\nselect\n    1\nfrom TEST_DB.PUBLIC.orders\n\nwhere not(order_items_subtotal = subtotal)\n\n",
+            "extra_ctes_injected": true,
+            "extra_ctes": [],
             "contract": {
                 "enforced": false,
                 "alias_types": true,
@@ -3736,7 +3576,11 @@
                     "model.jaffle_shop.orders"
                 ]
             },
-            "compiled_path": null,
+            "compiled_path": "target/compiled/jaffle_shop/models/marts/orders.yml/dbt_utils_expression_is_true_o_bf2cfee53d5bb32a0a918086ae35fff9.sql",
+            "compiled": true,
+            "compiled_code": "\n\n\n\nselect\n    1\nfrom TEST_DB.PUBLIC.orders\n\nwhere not(order_total = subtotal + tax_paid)\n\n",
+            "extra_ctes_injected": true,
+            "extra_ctes": [],
             "contract": {
                 "enforced": false,
                 "alias_types": true,
@@ -3986,7 +3830,11 @@
                     "model.jaffle_shop.orders"
                 ]
             },
-            "compiled_path": null,
+            "compiled_path": "target/compiled/jaffle_shop/models/marts/customers.sql",
+            "compiled": true,
+            "compiled_code": "with\n\ncustomers as (\n\n    select * from TEST_DB.PUBLIC.stg_customers\n\n),\n\norders as (\n\n    select * from TEST_DB.PUBLIC.orders\n\n),\n\ncustomer_orders_summary as (\n\n    select\n        orders.customer_id,\n\n        count(distinct orders.order_id) as count_lifetime_orders,\n        count(distinct orders.order_id) > 1 as is_repeat_buyer,\n        min(orders.ordered_at) as first_ordered_at,\n        max(orders.ordered_at) as last_ordered_at,\n        sum(orders.subtotal) as lifetime_spend_pretax,\n        sum(orders.tax_paid) as lifetime_tax_paid,\n        sum(orders.order_total) as lifetime_spend\n\n    from orders\n\n    group by 1\n\n),\n\njoined as (\n\n    select\n        customers.*,\n\n        customer_orders_summary.count_lifetime_orders,\n        customer_orders_summary.first_ordered_at,\n        customer_orders_summary.last_ordered_at,\n        customer_orders_summary.lifetime_spend_pretax,\n        customer_orders_summary.lifetime_tax_paid,\n        customer_orders_summary.lifetime_spend,\n\n        case\n            when customer_orders_summary.is_repeat_buyer then 'returning'\n            else 'new'\n        end as customer_type\n\n    from customers\n\n    left join customer_orders_summary\n        on customers.customer_id = customer_orders_summary.customer_id\n\n)\n\nselect * from joined",
+            "extra_ctes_injected": true,
+            "extra_ctes": [],
             "contract": {
                 "enforced": false,
                 "alias_types": true,
@@ -4067,13 +3915,18 @@
             "metrics": [],
             "depends_on": {
                 "macros": [
-                    "macro.dbt.test_not_null"
+                    "macro.dbt.test_not_null",
+                    "macro.dbt.get_where_subquery"
                 ],
                 "nodes": [
                     "model.jaffle_shop.customers"
                 ]
             },
-            "compiled_path": null,
+            "compiled_path": "target/compiled/jaffle_shop/models/marts/customers.yml/not_null_customers_customer_id.sql",
+            "compiled": true,
+            "compiled_code": "\n    \n    \n\n\n\nselect customer_id\nfrom TEST_DB.PUBLIC.customers\nwhere customer_id is null\n\n\n",
+            "extra_ctes_injected": true,
+            "extra_ctes": [],
             "contract": {
                 "enforced": false,
                 "alias_types": true,
@@ -4156,13 +4009,18 @@
             "metrics": [],
             "depends_on": {
                 "macros": [
-                    "macro.dbt.test_unique"
+                    "macro.dbt.test_unique",
+                    "macro.dbt.get_where_subquery"
                 ],
                 "nodes": [
                     "model.jaffle_shop.customers"
                 ]
             },
-            "compiled_path": null,
+            "compiled_path": "target/compiled/jaffle_shop/models/marts/customers.yml/unique_customers_customer_id.sql",
+            "compiled": true,
+            "compiled_code": "\n    \n    \n\nselect\n    customer_id as unique_field,\n    count(*) as n_records\n\nfrom TEST_DB.PUBLIC.customers\nwhere customer_id is not null\ngroup by customer_id\nhaving count(*) > 1\n\n\n",
+            "extra_ctes_injected": true,
+            "extra_ctes": [],
             "contract": {
                 "enforced": false,
                 "alias_types": true,
@@ -4252,7 +4110,11 @@
                     "model.jaffle_shop.customers"
                 ]
             },
-            "compiled_path": null,
+            "compiled_path": "target/compiled/jaffle_shop/models/marts/customers.yml/accepted_values_customers_customer_type__new__returning.sql",
+            "compiled": true,
+            "compiled_code": "\n    \n    \n\nwith all_values as (\n\n    select\n        customer_type as value_field,\n        count(*) as n_records\n\n    from TEST_DB.PUBLIC.customers\n    group by customer_type\n\n)\n\nselect *\nfrom all_values\nwhere value_field not in (\n    'new','returning'\n)\n\n\n",
+            "extra_ctes_injected": true,
+            "extra_ctes": [],
             "contract": {
                 "enforced": false,
                 "alias_types": true,
@@ -4348,7 +4210,11 @@
                     "model.jaffle_shop.customers"
                 ]
             },
-            "compiled_path": null,
+            "compiled_path": "target/compiled/jaffle_shop/models/marts/customers.yml/dbt_utils_expression_is_true_c_177c20685a18a9071d4a71719e3d9565.sql",
+            "compiled": true,
+            "compiled_code": "\n\n\n\nselect\n    1\nfrom TEST_DB.PUBLIC.customers\n\nwhere not(lifetime_spend_pretax + lifetime_tax_paid = lifetime_spend)\n\n",
+            "extra_ctes_injected": true,
+            "extra_ctes": [],
             "contract": {
                 "enforced": false,
                 "alias_types": true,
@@ -4364,6 +4230,319 @@
                     "model": "{{ get_where_subquery(ref('customers')) }}"
                 },
                 "namespace": "dbt_utils"
+            }
+        },
+        "model.jaffle_shop.stg_customers": {
+            "database": "TEST_DB",
+            "schema": "PUBLIC",
+            "name": "stg_customers",
+            "resource_type": "model",
+            "package_name": "jaffle_shop",
+            "path": "staging/stg_customers.sql",
+            "original_file_path": "models/staging/stg_customers.sql",
+            "unique_id": "model.jaffle_shop.stg_customers",
+            "fqn": [
+                "jaffle_shop",
+                "staging",
+                "stg_customers"
+            ],
+            "alias": "stg_customers",
+            "checksum": {
+                "name": "sha256",
+                "checksum": "dafdd028d9d8a4c96d02318ef1983a9b96cc688ed64e0803191c811f4265e907"
+            },
+            "config": {
+                "enabled": true,
+                "alias": null,
+                "schema": null,
+                "database": null,
+                "tags": [],
+                "meta": {},
+                "group": null,
+                "materialized": "view",
+                "incremental_strategy": null,
+                "batch_size": null,
+                "lookback": 1,
+                "begin": null,
+                "persist_docs": {},
+                "post-hook": [],
+                "pre-hook": [],
+                "quoting": {},
+                "column_types": {},
+                "full_refresh": null,
+                "unique_key": null,
+                "on_schema_change": "ignore",
+                "on_configuration_change": "apply",
+                "grants": {},
+                "packages": [],
+                "docs": {
+                    "show": true,
+                    "node_color": null
+                },
+                "contract": {
+                    "enforced": false,
+                    "alias_types": true
+                },
+                "event_time": null,
+                "concurrent_batches": null,
+                "access": "protected",
+                "freshness": null
+            },
+            "tags": [],
+            "description": "Customer data with basic cleaning and transformation applied, one row per customer.",
+            "columns": {
+                "customer_id": {
+                    "name": "customer_id",
+                    "description": "The unique key for each customer.",
+                    "meta": {},
+                    "data_type": null,
+                    "constraints": [],
+                    "quote": null,
+                    "config": {
+                        "meta": {},
+                        "tags": []
+                    },
+                    "tags": [],
+                    "granularity": null,
+                    "doc_blocks": []
+                }
+            },
+            "meta": {},
+            "group": null,
+            "docs": {
+                "show": true,
+                "node_color": null
+            },
+            "patch_path": "jaffle_shop://models/staging/stg_customers.yml",
+            "build_path": null,
+            "unrendered_config": {
+                "materialized": "view"
+            },
+            "created_at": 1754974052.186011,
+            "relation_name": "TEST_DB.PUBLIC.stg_customers",
+            "raw_code": "with\n\nsource as (\n\n    select * from {{ source('ecom', 'raw_customers') }}\n\n),\n\nhardcoded_ref as (\n    select * from TEST_DB.PUBLIC.CUSTOMERS_HARDCODED\n),\n\nrenamed as (\n\n    select\n\n        ----------  ids\n        s1.id as customer_id,\n\n        ---------- text\n        s1.name as customer_name,\n        s2.customer_name as hardcoded_name,\n\n    from source s1\n    left join hardcoded_ref s2 \n        on s1.id = s2.customer_id\n\n)\n\nselect * from renamed",
+            "doc_blocks": [],
+            "language": "sql",
+            "refs": [],
+            "sources": [
+                [
+                    "ecom",
+                    "raw_customers"
+                ]
+            ],
+            "metrics": [],
+            "depends_on": {
+                "macros": [],
+                "nodes": [
+                    "source.jaffle_shop.ecom.raw_customers"
+                ]
+            },
+            "compiled_path": "target/compiled/jaffle_shop/models/staging/stg_customers.sql",
+            "compiled": true,
+            "compiled_code": "with\n\nsource as (\n\n    select * from TEST_DB.raw.raw_customers\n\n),\n\nhardcoded_ref as (\n    select * from TEST_DB.PUBLIC.CUSTOMERS_HARDCODED\n),\n\nrenamed as (\n\n    select\n\n        ----------  ids\n        s1.id as customer_id,\n\n        ---------- text\n        s1.name as customer_name,\n        s2.customer_name as hardcoded_name,\n\n    from source s1\n    left join hardcoded_ref s2 \n        on s1.id = s2.customer_id\n\n)\n\nselect * from renamed",
+            "extra_ctes_injected": true,
+            "extra_ctes": [],
+            "contract": {
+                "enforced": false,
+                "alias_types": true,
+                "checksum": null
+            },
+            "access": "protected",
+            "constraints": [],
+            "version": null,
+            "latest_version": null,
+            "deprecation_date": null,
+            "primary_key": [
+                "customer_id"
+            ],
+            "time_spine": null
+        },
+        "test.jaffle_shop.not_null_stg_customers_customer_id.e2cfb1f9aa": {
+            "database": "TEST_DB",
+            "schema": "PUBLIC",
+            "name": "not_null_stg_customers_customer_id",
+            "resource_type": "test",
+            "package_name": "jaffle_shop",
+            "path": "not_null_stg_customers_customer_id.sql",
+            "original_file_path": "models/staging/stg_customers.yml",
+            "unique_id": "test.jaffle_shop.not_null_stg_customers_customer_id.e2cfb1f9aa",
+            "fqn": [
+                "jaffle_shop",
+                "staging",
+                "not_null_stg_customers_customer_id"
+            ],
+            "alias": "not_null_stg_customers_customer_id",
+            "checksum": {
+                "name": "none",
+                "checksum": ""
+            },
+            "config": {
+                "enabled": true,
+                "alias": null,
+                "schema": "dbt_test__audit",
+                "database": null,
+                "tags": [],
+                "meta": {},
+                "group": null,
+                "materialized": "test",
+                "severity": "ERROR",
+                "store_failures": null,
+                "store_failures_as": null,
+                "where": null,
+                "limit": null,
+                "fail_calc": "count(*)",
+                "warn_if": "!= 0",
+                "error_if": "!= 0"
+            },
+            "tags": [],
+            "description": "",
+            "columns": {},
+            "meta": {},
+            "group": null,
+            "docs": {
+                "show": true,
+                "node_color": null
+            },
+            "patch_path": null,
+            "build_path": null,
+            "unrendered_config": {},
+            "created_at": 1754974052.253673,
+            "relation_name": null,
+            "raw_code": "{{ test_not_null(**_dbt_generic_test_kwargs) }}",
+            "doc_blocks": [],
+            "language": "sql",
+            "refs": [
+                {
+                    "name": "stg_customers",
+                    "package": null,
+                    "version": null
+                }
+            ],
+            "sources": [],
+            "metrics": [],
+            "depends_on": {
+                "macros": [
+                    "macro.dbt.test_not_null",
+                    "macro.dbt.get_where_subquery"
+                ],
+                "nodes": [
+                    "model.jaffle_shop.stg_customers"
+                ]
+            },
+            "compiled_path": "target/compiled/jaffle_shop/models/staging/stg_customers.yml/not_null_stg_customers_customer_id.sql",
+            "compiled": true,
+            "compiled_code": "\n    \n    \n\n\n\nselect customer_id\nfrom TEST_DB.PUBLIC.stg_customers\nwhere customer_id is null\n\n\n",
+            "extra_ctes_injected": true,
+            "extra_ctes": [],
+            "contract": {
+                "enforced": false,
+                "alias_types": true,
+                "checksum": null
+            },
+            "column_name": "customer_id",
+            "file_key_name": "models.stg_customers",
+            "attached_node": "model.jaffle_shop.stg_customers",
+            "test_metadata": {
+                "name": "not_null",
+                "kwargs": {
+                    "column_name": "customer_id",
+                    "model": "{{ get_where_subquery(ref('stg_customers')) }}"
+                },
+                "namespace": null
+            }
+        },
+        "test.jaffle_shop.unique_stg_customers_customer_id.c7614daada": {
+            "database": "TEST_DB",
+            "schema": "PUBLIC",
+            "name": "unique_stg_customers_customer_id",
+            "resource_type": "test",
+            "package_name": "jaffle_shop",
+            "path": "unique_stg_customers_customer_id.sql",
+            "original_file_path": "models/staging/stg_customers.yml",
+            "unique_id": "test.jaffle_shop.unique_stg_customers_customer_id.c7614daada",
+            "fqn": [
+                "jaffle_shop",
+                "staging",
+                "unique_stg_customers_customer_id"
+            ],
+            "alias": "unique_stg_customers_customer_id",
+            "checksum": {
+                "name": "none",
+                "checksum": ""
+            },
+            "config": {
+                "enabled": true,
+                "alias": null,
+                "schema": "dbt_test__audit",
+                "database": null,
+                "tags": [],
+                "meta": {},
+                "group": null,
+                "materialized": "test",
+                "severity": "ERROR",
+                "store_failures": null,
+                "store_failures_as": null,
+                "where": null,
+                "limit": null,
+                "fail_calc": "count(*)",
+                "warn_if": "!= 0",
+                "error_if": "!= 0"
+            },
+            "tags": [],
+            "description": "",
+            "columns": {},
+            "meta": {},
+            "group": null,
+            "docs": {
+                "show": true,
+                "node_color": null
+            },
+            "patch_path": null,
+            "build_path": null,
+            "unrendered_config": {},
+            "created_at": 1754974052.2550302,
+            "relation_name": null,
+            "raw_code": "{{ test_unique(**_dbt_generic_test_kwargs) }}",
+            "doc_blocks": [],
+            "language": "sql",
+            "refs": [
+                {
+                    "name": "stg_customers",
+                    "package": null,
+                    "version": null
+                }
+            ],
+            "sources": [],
+            "metrics": [],
+            "depends_on": {
+                "macros": [
+                    "macro.dbt.test_unique",
+                    "macro.dbt.get_where_subquery"
+                ],
+                "nodes": [
+                    "model.jaffle_shop.stg_customers"
+                ]
+            },
+            "compiled_path": "target/compiled/jaffle_shop/models/staging/stg_customers.yml/unique_stg_customers_customer_id.sql",
+            "compiled": true,
+            "compiled_code": "\n    \n    \n\nselect\n    customer_id as unique_field,\n    count(*) as n_records\n\nfrom TEST_DB.PUBLIC.stg_customers\nwhere customer_id is not null\ngroup by customer_id\nhaving count(*) > 1\n\n\n",
+            "extra_ctes_injected": true,
+            "extra_ctes": [],
+            "contract": {
+                "enforced": false,
+                "alias_types": true,
+                "checksum": null
+            },
+            "column_name": "customer_id",
+            "file_key_name": "models.stg_customers",
+            "attached_node": "model.jaffle_shop.stg_customers",
+            "test_metadata": {
+                "name": "unique",
+                "kwargs": {
+                    "column_name": "customer_id",
+                    "model": "{{ get_where_subquery(ref('stg_customers')) }}"
+                },
+                "namespace": null
             }
         }
     },
@@ -24956,9 +25135,6 @@
         "model.jaffle_shop.stg_order_items": [
             "source.jaffle_shop.ecom.raw_items"
         ],
-        "model.jaffle_shop.stg_customers": [
-            "source.jaffle_shop.ecom.raw_customers"
-        ],
         "model.jaffle_shop.stg_locations": [
             "source.jaffle_shop.ecom.raw_stores"
         ],
@@ -24993,12 +25169,6 @@
         "test.jaffle_shop.relationships_stg_order_items_order_id__order_id__ref_stg_orders_.dbe9930c54": [
             "model.jaffle_shop.stg_order_items",
             "model.jaffle_shop.stg_orders"
-        ],
-        "test.jaffle_shop.not_null_stg_customers_customer_id.e2cfb1f9aa": [
-            "model.jaffle_shop.stg_customers"
-        ],
-        "test.jaffle_shop.unique_stg_customers_customer_id.c7614daada": [
-            "model.jaffle_shop.stg_customers"
         ],
         "test.jaffle_shop.not_null_stg_locations_location_id.3d237927d2": [
             "model.jaffle_shop.stg_locations"
@@ -25075,6 +25245,15 @@
         ],
         "test.jaffle_shop.dbt_utils_expression_is_true_customers_lifetime_spend_pretax_lifetime_tax_paid_lifetime_spend.ad37c989b6": [
             "model.jaffle_shop.customers"
+        ],
+        "model.jaffle_shop.stg_customers": [
+            "source.jaffle_shop.ecom.raw_customers"
+        ],
+        "test.jaffle_shop.not_null_stg_customers_customer_id.e2cfb1f9aa": [
+            "model.jaffle_shop.stg_customers"
+        ],
+        "test.jaffle_shop.unique_stg_customers_customer_id.c7614daada": [
+            "model.jaffle_shop.stg_customers"
         ],
         "source.jaffle_shop.ecom.raw_customers": [],
         "source.jaffle_shop.ecom.raw_orders": [],
@@ -25210,12 +25389,6 @@
             "test.jaffle_shop.relationships_stg_order_items_order_id__order_id__ref_stg_orders_.dbe9930c54",
             "test.jaffle_shop.unique_stg_order_items_order_item_id.90e333a108"
         ],
-        "model.jaffle_shop.stg_customers": [
-            "model.jaffle_shop.customers",
-            "test.jaffle_shop.not_null_stg_customers_customer_id.e2cfb1f9aa",
-            "test.jaffle_shop.relationships_orders_customer_id__customer_id__ref_stg_customers_.918495ce16",
-            "test.jaffle_shop.unique_stg_customers_customer_id.c7614daada"
-        ],
         "model.jaffle_shop.stg_locations": [
             "model.jaffle_shop.locations",
             "test.jaffle_shop.not_null_stg_locations_location_id.3d237927d2",
@@ -25250,8 +25423,6 @@
         "test.jaffle_shop.unique_stg_order_items_order_item_id.90e333a108": [],
         "test.jaffle_shop.not_null_stg_order_items_order_id.2063801f96": [],
         "test.jaffle_shop.relationships_stg_order_items_order_id__order_id__ref_stg_orders_.dbe9930c54": [],
-        "test.jaffle_shop.not_null_stg_customers_customer_id.e2cfb1f9aa": [],
-        "test.jaffle_shop.unique_stg_customers_customer_id.c7614daada": [],
         "test.jaffle_shop.not_null_stg_locations_location_id.3d237927d2": [],
         "test.jaffle_shop.unique_stg_locations_location_id.2e2fc58ecc": [],
         "test.jaffle_shop.not_null_stg_supplies_supply_uuid.515c6eda6d": [],
@@ -25293,6 +25464,14 @@
         "test.jaffle_shop.unique_customers_customer_id.c5af1ff4b1": [],
         "test.jaffle_shop.accepted_values_customers_customer_type__new__returning.d12f0947c8": [],
         "test.jaffle_shop.dbt_utils_expression_is_true_customers_lifetime_spend_pretax_lifetime_tax_paid_lifetime_spend.ad37c989b6": [],
+        "model.jaffle_shop.stg_customers": [
+            "model.jaffle_shop.customers",
+            "test.jaffle_shop.not_null_stg_customers_customer_id.e2cfb1f9aa",
+            "test.jaffle_shop.relationships_orders_customer_id__customer_id__ref_stg_customers_.918495ce16",
+            "test.jaffle_shop.unique_stg_customers_customer_id.c7614daada"
+        ],
+        "test.jaffle_shop.not_null_stg_customers_customer_id.e2cfb1f9aa": [],
+        "test.jaffle_shop.unique_stg_customers_customer_id.c7614daada": [],
         "source.jaffle_shop.ecom.raw_customers": [
             "model.jaffle_shop.stg_customers"
         ],
