@@ -79,22 +79,25 @@ class DbtColibriReportGenerator:
                     "contractType": val.get("data_type"),
                     "description": val.get("description"),
                 }
-        if catalog_data and catalog_data.get("columns"):
-            for col, val in catalog_data["columns"].items():
-                col = col.lower()
-                if col not in columns:
-                    columns[col] = {}
-                columns[col]["dataType"] = val.get("type")
+        if catalog_data:
+            if catalog_data.get("columns"):
+                for col, val in catalog_data["columns"].items():
+                    col = col.lower()
+                    if col not in columns:
+                        columns[col] = {}
+                    columns[col]["dataType"] = val.get("type")
 
         return {
             "nodeType": node_data.get("resource_type", "unknown") if node_data else "unknown",
             "rawCode": node_data.get("raw_code") or node_data.get("raw_sql"),
             "compiledCode": node_data.get("compiled_code") or node_data.get("compiled_sql"),
             "schema": node_data.get("schema"),
+            "path": node_data.get("original_file_path"),
             "description": node_data.get("description"),
             "contractEnforced": node_data.get("config", {}).get("contract", {}).get("enforced"),
             "refs": node_data.get("refs", []),
             "columns": columns,
+            "database": node_data.get("database")
         }
     
     def build_full_lineage(self) -> dict:
@@ -128,7 +131,9 @@ class DbtColibriReportGenerator:
                     "fullName": node_id,
                     "nodeType": meta["nodeType"],
                     "modelType": self.detect_model_type(node_id),
+                    "database": meta.get("database"),
                     "schema": meta["schema"],
+                    "path": meta.get("path"),
                     "description": meta["description"],
                     "contractEnforced": meta["contractEnforced"],
                     "rawCode": meta["rawCode"],
@@ -196,6 +201,56 @@ class DbtColibriReportGenerator:
         for node_id in all_ids:
             ensure_node(node_id)
 
+        # Build database -> schema -> models tree (store only node IDs)
+        db_tree: Dict[str, Dict[str, List[dict]]] = {}
+        for node in nodes.values():
+            # Only include non-test, non-macro nodes (already filtered above),
+            # but keep both models and sources in the tree
+            database = node.get("database") or "unknown"
+            schema = node.get("schema") or "unknown"
+
+            if database not in db_tree:
+                db_tree[database] = {}
+            if schema not in db_tree[database]:
+                db_tree[database][schema] = []
+
+            # Append only the node id for compactness
+            db_tree[database][schema].append(node["id"])
+
+        # Optionally sort entries for stable UI
+        for database in db_tree:
+            for schema in db_tree[database]:
+                db_tree[database][schema].sort(key=lambda node_id: nodes[node_id]["name"]) 
+
+        # Build a tree based on file path (e.g., models/area/subarea/model.sql)
+        # Structure: { rootSegment: { nextSegment: { ... }, __items__: [node_ids] } }
+        path_tree: Dict[str, dict] = {}
+        for node in nodes.values():
+            node_path = node.get("path")
+            if not node_path:
+                # Put items without path under a special bucket
+                path_tree.setdefault("__no_path__", {}).setdefault("__items__", []).append(node["id"])
+                continue
+
+            # Normalize and split path into segments
+            parts = [p for p in str(node_path).replace("\\", "/").split("/") if p]
+            cursor = path_tree
+            for segment in parts[:-1]:
+                cursor = cursor.setdefault(segment, {})
+            # Leaf item: append only the node id
+            cursor.setdefault("__items__", []).append(node["id"])
+
+        # Sort items within each folder node by name
+        def sort_path_tree(folder: dict):
+            if "__items__" in folder:
+                folder["__items__"].sort(key=lambda node_id: nodes[node_id]["name"]) 
+            for key, val in list(folder.items()):
+                if key == "__items__":
+                    continue
+                if isinstance(val, dict):
+                    sort_path_tree(val)
+        sort_path_tree(path_tree)
+
         # Build the final structure
         return {
             "metadata": {
@@ -213,6 +268,10 @@ class DbtColibriReportGenerator:
                 "edges": edges,
                 "parents": parents_map,
                 "children": children_map
+            },
+            "tree": {
+                "byDatabase": db_tree,
+                "byPath": path_tree
             }
         }
     

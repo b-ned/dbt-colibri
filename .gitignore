@@ -156,3 +156,5 @@ cython_debug/
 dev_data/
 main.py
 .vscode/launch.json
+output/
+.vscode/settings.json

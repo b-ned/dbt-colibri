@@ -1,6 +1,6 @@
 [project]
 name = "dbt-colibri"
-version = "0.2.3b1"
+version = "0.2.3b2"
 description = "A column lineage parser and dashboarding tool"
 authors = [
     { name="bned" }
@@ -42,6 +42,7 @@ dev = [
     "mypy",
     "build",
     "twine",
+    "pre-commit",
 ]
 
 [[tool.uv.index]]
