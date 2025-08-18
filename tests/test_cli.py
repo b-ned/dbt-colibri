@@ -5,8 +5,10 @@ from dbt_colibri.cli.cli import cli
 
 
 @pytest.fixture
-def test_data_dir():
-    return os.path.join("tests", "test_data", "inputs")
+def test_data_dir(dbt_valid_test_data_dir):
+    if dbt_valid_test_data_dir is None:
+        pytest.skip("No valid versioned test data present")
+    return dbt_valid_test_data_dir
 
 
 @pytest.fixture

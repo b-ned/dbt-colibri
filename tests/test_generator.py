@@ -2,13 +2,15 @@ from dbt_colibri.report.generator import DbtColibriReportGenerator
 from dbt_colibri.lineage_extractor.extractor import DbtColumnLineageExtractor
 
 
-def test_build_manifest_node_data_node_not_found():
+def test_build_manifest_node_data_node_not_found(dbt_valid_test_data_dir):
     """Test build_manifest_node_data when node_id is not found in manifest or catalog."""
     
     # Create an extractor instance
+    if dbt_valid_test_data_dir is None:
+        pytest.skip("No valid versioned test data present")
     extractor = DbtColumnLineageExtractor(
-        manifest_path="tests/test_data/inputs/manifest.json",
-        catalog_path="tests/test_data/inputs/catalog.json",
+        manifest_path=f"{dbt_valid_test_data_dir}/manifest.json",
+        catalog_path=f"{dbt_valid_test_data_dir}/catalog.json",
         dialect="snowflake"
     )
     
@@ -44,12 +46,14 @@ def test_build_manifest_node_data_node_not_found():
     assert node_data["columns"] == {}
 
 
-def test_detect_model_type_with_non_existent_node():
+def test_detect_model_type_with_non_existent_node(dbt_valid_test_data_dir):
     """Test detect_model_type with a non-existent node_id."""
     
+    if dbt_valid_test_data_dir is None:
+        pytest.skip("No valid versioned test data present")
     extractor = DbtColumnLineageExtractor(
-        manifest_path="tests/test_data/inputs/manifest.json",
-        catalog_path="tests/test_data/inputs/catalog.json",
+        manifest_path=f"{dbt_valid_test_data_dir}/manifest.json",
+        catalog_path=f"{dbt_valid_test_data_dir}/catalog.json",
         dialect="snowflake"
     )
     
@@ -71,13 +75,15 @@ def test_detect_model_type_with_non_existent_node():
         assert result == expected_type, f"Expected {expected_type} for {node_id}, got {result}"
 
 
-def test_ensure_node_with_missing_node_creates_default():
+def test_ensure_node_with_missing_node_creates_default(dbt_valid_test_data_dir):
     """Test that ensure_node creates a default node structure when node is missing."""
     from unittest.mock import patch
     
+    if dbt_valid_test_data_dir is None:
+        pytest.skip("No valid versioned test data present")
     extractor = DbtColumnLineageExtractor(
-        manifest_path="tests/test_data/inputs/manifest.json",
-        catalog_path="tests/test_data/inputs/catalog.json",
+        manifest_path=f"{dbt_valid_test_data_dir}/manifest.json",
+        catalog_path=f"{dbt_valid_test_data_dir}/catalog.json",
         dialect="snowflake"
     )
     
@@ -125,11 +131,13 @@ def test_ensure_node_with_missing_node_creates_default():
                 break
         assert edge_found, "Expected edge between non-existent parent and child"
 
-def test_generated_report_excludes_test_nodes():
+def test_generated_report_excludes_test_nodes(dbt_valid_test_data_dir):
     """Ensure test nodes are excluded and non-test resource types are present."""
 
-    manifest_path = "tests/test_data/1.10/manifest.json"
-    catalog_path = "tests/test_data/1.10/catalog.json"
+    if dbt_valid_test_data_dir is None:
+        pytest.skip("No valid versioned test data present")
+    manifest_path = f"{dbt_valid_test_data_dir}/manifest.json"
+    catalog_path = f"{dbt_valid_test_data_dir}/catalog.json"
 
     extractor = DbtColumnLineageExtractor(
         manifest_path=manifest_path,
