@@ -1,7 +1,7 @@
 import os
 import glob
 import json
-import pytest
+
 
 
 def _test_data_base_dir() -> str:

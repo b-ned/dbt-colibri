@@ -1,6 +1,6 @@
 from dbt_colibri.report.generator import DbtColibriReportGenerator
 from dbt_colibri.lineage_extractor.extractor import DbtColumnLineageExtractor
-
+import pytest
 
 def test_build_manifest_node_data_node_not_found(dbt_valid_test_data_dir):
     """Test build_manifest_node_data when node_id is not found in manifest or catalog."""

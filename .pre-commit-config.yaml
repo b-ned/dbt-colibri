@@ -3,4 +3,3 @@ repos:
     rev: v0.4.8
     hooks:
       - id: ruff
-        args: ["check"]
