@@ -42,6 +42,7 @@ dev = [
     "mypy",
     "build",
     "twine",
+    "pre-commit",
 ]
 
 [[tool.uv.index]]
