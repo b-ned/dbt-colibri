@@ -63,13 +63,16 @@ class DbtColibriReportGenerator:
                 node_type = "not_found"
             return {
                 "nodeType": node_type,
+                "materialized": None,
                 "rawCode": None,
                 "compiledCode": None,
                 "schema": None,
                 "description": None,
+                "path": None,
                 "contractEnforced": None,
                 "refs": [],
                 "columns": {},
+                "database": None,
             }
 
         columns = {}
@@ -87,8 +90,15 @@ class DbtColibriReportGenerator:
                         columns[col] = {}
                     columns[col]["dataType"] = val.get("type")
 
+        if node_data:
+            node_type = node_data.get("resource_type", "unknown")
+            materialized = node_data.get("config", {}).get("materialized", "unknown")
+        else:
+            node_type = materialized = "unknown"
+
         return {
-            "nodeType": node_data.get("resource_type", "unknown") if node_data else "unknown",
+            "nodeType": node_type,
+            "materialized": materialized,
             "rawCode": node_data.get("raw_code") or node_data.get("raw_sql"),
             "compiledCode": node_data.get("compiled_code") or node_data.get("compiled_sql"),
             "schema": node_data.get("schema"),
@@ -130,6 +140,7 @@ class DbtColibriReportGenerator:
                     "name": node_id.split(".")[-1],
                     "fullName": node_id,
                     "nodeType": meta["nodeType"],
+                    "materialized": meta["materialized"],
                     "modelType": self.detect_model_type(node_id),
                     "database": meta.get("database"),
                     "schema": meta["schema"],
