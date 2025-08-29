@@ -21,7 +21,7 @@ for version in versions:
     )
 
     report_generator = DbtColibriReportGenerator(extractor)
-    report_generator.generate_report(target_dir=output_dir)
+    report_generator.generate_report(output_dir=output_dir)
 
     print(f"✔ Done with {version}, results in {output_dir}")
      # assume the generator creates index.html

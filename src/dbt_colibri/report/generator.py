@@ -286,12 +286,12 @@ class DbtColibriReportGenerator:
             }
         }
     
-    def generate_report(self, target_dir: str = "dist") -> dict:
+    def generate_report(self, output_dir: str = "dist") -> dict:
         """
         Generate the complete dbt-colibri report with both JSON and HTML output.
         
         Args:
-            target_dir: Directory to save both JSON and HTML files (default: "dist")
+            output_dir: Directory to save both JSON and HTML files (default: "dist")
             
         Returns:
             dict: Complete report data
@@ -299,7 +299,7 @@ class DbtColibriReportGenerator:
         lineage = self.build_full_lineage()
         
         # Create target directory
-        target_path = Path(target_dir)
+        target_path = Path(output_dir)
         target_path.mkdir(parents=True, exist_ok=True)
         
         # Save JSON data
