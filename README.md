@@ -16,7 +16,7 @@ Built for data teams who want transparent, flexible lineage tracking without ven
 - **⚡ Fast & lightweight**: Generate reports in seconds from your existing dbt artifacts
 - **🏠 Self-hosted**: No cloud dependencies or external services required
 
-Live demo of dashboard: https://b-ned.github.io/colibri-demo/
+Live demo of dashboard: [https://b-ned.github.io/colibri-demo/](https://b-ned.github.io/dbt-colibri/)
 <!-- Add a screenshot here when available -->
 ![dbt-colibri dashboard](https://github.com/b-ned/dbt-colibri/blob/d31ece39bacf862e485233aad3e84df9a7618946/static/ui_colibri_readme.png)
 
