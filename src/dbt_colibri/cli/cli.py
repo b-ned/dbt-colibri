@@ -30,7 +30,7 @@ def cli():
 
 @cli.command("generate")
 @click.option(
-    "--target-dir",
+    "--output-dir",
     type=str,
     default="dist",
     help="Directory to save both JSON and HTML files (default: dist)"
@@ -53,7 +53,7 @@ def cli():
     default=False,
     help="Enable debug-level logging"
 )
-def generate_report(target_dir, manifest, catalog, debug):
+def generate_report(output_dir, manifest, catalog, debug):
     """Generate a dbt-colibri lineage report with both JSON and HTML output."""
     import logging
     from ..utils import log
@@ -79,11 +79,11 @@ def generate_report(target_dir, manifest, catalog, debug):
         report_generator = DbtColibriReportGenerator(extractor)
 
         click.echo("🚀 Generating report...")
-        report_generator.generate_report(target_dir=target_dir)
+        report_generator.generate_report(output_dir=output_dir)
 
         click.echo("✅ Report completed!")
-        click.echo(f"   📁 JSON: {target_dir}/colibri-manifest.json")
-        click.echo(f"   🌐 HTML: {target_dir}/index.html")
+        click.echo(f"   📁 JSON: {output_dir}/colibri-manifest.json")
+        click.echo(f"   🌐 HTML: {output_dir}/index.html")
         sys.exit(0)
     except Exception as e:
         click.echo(f"❌ Error: {str(e)}")

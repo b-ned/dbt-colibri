@@ -26,7 +26,7 @@ def test_generate_success(test_data_dir, test_output_dir):
             "generate",
             "--manifest", os.path.join(test_data_dir, "manifest.json"),
             "--catalog", os.path.join(test_data_dir, "catalog.json"),
-            "--target-dir", test_output_dir
+            "--output-dir", test_output_dir
         ]
     )
 
@@ -44,7 +44,7 @@ def test_generate_missing_manifest(test_data_dir, test_output_dir):
             "generate",
             "--manifest", os.path.join(test_data_dir, "nonexistent_manifest.json"),
             "--catalog", os.path.join(test_data_dir, "catalog.json"),
-            "--target-dir", test_output_dir
+            "--output-dir", test_output_dir
         ]
     )
 
@@ -61,7 +61,7 @@ def test_generate_missing_catalog(test_data_dir, test_output_dir):
             "generate",
             "--manifest", os.path.join(test_data_dir, "manifest.json"),
             "--catalog", os.path.join(test_data_dir, "nonexistent_catalog.json"),
-            "--target-dir", test_output_dir
+            "--output-dir", test_output_dir
         ]
     )
 
@@ -85,7 +85,7 @@ def test_generate_raises_exception(monkeypatch, test_data_dir, test_output_dir):
             "generate",
             "--manifest", os.path.join(test_data_dir, "manifest.json"),
             "--catalog", os.path.join(test_data_dir, "catalog.json"),
-            "--target-dir", test_output_dir
+            "--output-dir", test_output_dir
         ]
     )
 

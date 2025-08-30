@@ -1,0 +1,73 @@
+name: dbt Colibri Example
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        run: python3 -m pip install uv
+
+      - name: Install dependencies
+        run: uv pip install -r requirements.txt --system
+
+      # In your real pipeline you would want to regenerate the manifest and catalog.
+      # - name: Initialize dbt
+      #   run: |
+      #     dbt deps
+      #     dbt compile
+      #     dbt docs generate
+
+      - name: Run Colibri
+        run: colibri generate
+
+      - name: Prepare artifact
+        run: |
+          # Ensure that the index.html is generated in the output dir
+          if [ -f dist/index.html ]; then
+            echo "Preparing artifact for GitHub Pages..."
+          else
+            echo "Error: dist/index.html not found!"
+            exit 1
+          fi
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist  # upload entire dist folder
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

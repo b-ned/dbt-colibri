@@ -88,9 +88,21 @@ your-dbt-project/
 
 ## 🔧 Advanced Usage
 
-### CI/CD Integration (W.I.P)
+### CI/CD Integration
 
-Todo: Instructions on how to add to your CI pipeline to automatically generate and deploy lineage documentation.
+The easiest way to deploy your static html is through github/gitlab pages (if you are on enterprise license you can do this privately)
+
+You can find the full example workflow at [`docs/github_pages_example.yml`](docs/github_pages_example.yml).
+
+#### General idea
+1. After every change to the production dbt code (push the `main` branch), GitHub Actions will:
+   - Set up Python and install dependencies with `uv`.
+   - Compile and generate docs needed for colibri.
+   - Run `colibri generate` to build the static HTML report in the `dist/` folder.
+2. The `dist/` folder is uploaded as an artifact and deployed natively to GitHub Pages using the official `actions/deploy-pages` action.
+3. The result is available at your repository’s Pages URL.
+
+Gitlab has similar functionality. Other options are writing the file to a bucket and mount it into a web server container (nginx).
 
 ## 🛠️ Technical Details
 
