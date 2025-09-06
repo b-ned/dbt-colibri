@@ -91,3 +91,40 @@ def test_generate_raises_exception(monkeypatch, test_data_dir, test_output_dir):
 
     assert result.exit_code == 1
     assert "❌ Error: Simulated failure" in result.output
+
+
+def test_generate_with_bigquery_dialect(test_data_dir, test_output_dir):
+    """Test successful report generation with BigQuery dialect"""
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "generate",
+            "--manifest", os.path.join(test_data_dir, "manifest.json"),
+            "--catalog", os.path.join(test_data_dir, "catalog.json"),
+            "--output-dir", test_output_dir,
+            "--dialect", "bigquery"
+        ]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert os.path.exists(os.path.join(test_output_dir, "colibri-manifest.json"))
+    assert os.path.exists(os.path.join(test_output_dir, "index.html"))
+
+
+def test_generate_invalid_dialect(test_data_dir, test_output_dir):
+    """Test that invalid dialect options are rejected"""
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "generate",
+            "--manifest", os.path.join(test_data_dir, "manifest.json"),
+            "--catalog", os.path.join(test_data_dir, "catalog.json"),
+            "--output-dir", test_output_dir,
+            "--dialect", "invalid_dialect"
+        ]
+    )
+
+    assert result.exit_code == 2  # Click error code for invalid choice
+    assert "Invalid value for '--dialect'" in result.output
