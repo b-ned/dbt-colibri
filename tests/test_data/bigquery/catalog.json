@@ -1,0 +1,1479 @@
+{
+    "metadata": {
+        "dbt_schema_version": "https://schemas.getdbt.com/dbt/catalog/v1.json",
+        "dbt_version": "1.10.6",
+        "generated_at": "2025-09-04T19:35:27.614403Z",
+        "invocation_id": "ed4495c0-df6f-48b0-944b-6a2bad238098",
+        "invocation_started_at": "2025-09-04T19:35:19.574890Z",
+        "env": {}
+    },
+    "nodes": {
+        "model.jaffle_shop.customers": {
+            "metadata": {
+                "type": "table",
+                "schema": "dbt",
+                "name": "customers",
+                "database": "lofty-bolt-123",
+                "comment": null,
+                "owner": null
+            },
+            "columns": {
+                "customer_id": {
+                    "type": "STRING",
+                    "index": 1,
+                    "name": "customer_id",
+                    "comment": ""
+                },
+                "customer_name": {
+                    "type": "STRING",
+                    "index": 2,
+                    "name": "customer_name",
+                    "comment": ""
+                },
+                "hardcoded_name": {
+                    "type": "STRING",
+                    "index": 3,
+                    "name": "hardcoded_name",
+                    "comment": ""
+                },
+                "count_lifetime_orders": {
+                    "type": "INT64",
+                    "index": 4,
+                    "name": "count_lifetime_orders",
+                    "comment": ""
+                },
+                "first_ordered_at": {
+                    "type": "TIMESTAMP",
+                    "index": 5,
+                    "name": "first_ordered_at",
+                    "comment": ""
+                },
+                "last_ordered_at": {
+                    "type": "TIMESTAMP",
+                    "index": 6,
+                    "name": "last_ordered_at",
+                    "comment": ""
+                },
+                "lifetime_spend_pretax": {
+                    "type": "NUMERIC",
+                    "index": 7,
+                    "name": "lifetime_spend_pretax",
+                    "comment": ""
+                },
+                "lifetime_tax_paid": {
+                    "type": "NUMERIC",
+                    "index": 8,
+                    "name": "lifetime_tax_paid",
+                    "comment": ""
+                },
+                "lifetime_spend": {
+                    "type": "NUMERIC",
+                    "index": 9,
+                    "name": "lifetime_spend",
+                    "comment": ""
+                },
+                "customer_type": {
+                    "type": "STRING",
+                    "index": 10,
+                    "name": "customer_type",
+                    "comment": ""
+                }
+            },
+            "stats": {
+                "num_bytes": {
+                    "id": "num_bytes",
+                    "label": "Approximate Size",
+                    "value": 141747,
+                    "include": true,
+                    "description": "Approximate size of table as reported by BigQuery"
+                },
+                "num_rows": {
+                    "id": "num_rows",
+                    "label": "# Rows",
+                    "value": 935,
+                    "include": true,
+                    "description": "Approximate count of rows in this table"
+                },
+                "has_stats": {
+                    "id": "has_stats",
+                    "label": "Has Stats?",
+                    "value": true,
+                    "include": false,
+                    "description": "Indicates whether there are statistics for this table"
+                }
+            },
+            "unique_id": "model.jaffle_shop.customers"
+        },
+        "model.jaffle_shop.locations": {
+            "metadata": {
+                "type": "table",
+                "schema": "dbt",
+                "name": "locations",
+                "database": "lofty-bolt-123",
+                "comment": null,
+                "owner": null
+            },
+            "columns": {
+                "location_id": {
+                    "type": "STRING",
+                    "index": 1,
+                    "name": "location_id",
+                    "comment": ""
+                },
+                "location_name": {
+                    "type": "STRING",
+                    "index": 2,
+                    "name": "location_name",
+                    "comment": ""
+                },
+                "tax_rate": {
+                    "type": "FLOAT64",
+                    "index": 3,
+                    "name": "tax_rate",
+                    "comment": ""
+                },
+                "opened_date": {
+                    "type": "TIMESTAMP",
+                    "index": 4,
+                    "name": "opened_date",
+                    "comment": ""
+                }
+            },
+            "stats": {
+                "num_bytes": {
+                    "id": "num_bytes",
+                    "label": "Approximate Size",
+                    "value": 398,
+                    "include": true,
+                    "description": "Approximate size of table as reported by BigQuery"
+                },
+                "num_rows": {
+                    "id": "num_rows",
+                    "label": "# Rows",
+                    "value": 6,
+                    "include": true,
+                    "description": "Approximate count of rows in this table"
+                },
+                "has_stats": {
+                    "id": "has_stats",
+                    "label": "Has Stats?",
+                    "value": true,
+                    "include": false,
+                    "description": "Indicates whether there are statistics for this table"
+                }
+            },
+            "unique_id": "model.jaffle_shop.locations"
+        },
+        "model.jaffle_shop.metricflow_time_spine": {
+            "metadata": {
+                "type": "table",
+                "schema": "dbt",
+                "name": "metricflow_time_spine",
+                "database": "lofty-bolt-123",
+                "comment": null,
+                "owner": null
+            },
+            "columns": {
+                "date_day": {
+                    "type": "DATE",
+                    "index": 1,
+                    "name": "date_day",
+                    "comment": ""
+                }
+            },
+            "stats": {
+                "num_bytes": {
+                    "id": "num_bytes",
+                    "label": "Approximate Size",
+                    "value": 29208,
+                    "include": true,
+                    "description": "Approximate size of table as reported by BigQuery"
+                },
+                "num_rows": {
+                    "id": "num_rows",
+                    "label": "# Rows",
+                    "value": 3651,
+                    "include": true,
+                    "description": "Approximate count of rows in this table"
+                },
+                "has_stats": {
+                    "id": "has_stats",
+                    "label": "Has Stats?",
+                    "value": true,
+                    "include": false,
+                    "description": "Indicates whether there are statistics for this table"
+                }
+            },
+            "unique_id": "model.jaffle_shop.metricflow_time_spine"
+        },
+        "model.jaffle_shop.order_items": {
+            "metadata": {
+                "type": "table",
+                "schema": "dbt",
+                "name": "order_items",
+                "database": "lofty-bolt-123",
+                "comment": null,
+                "owner": null
+            },
+            "columns": {
+                "order_item_id": {
+                    "type": "STRING",
+                    "index": 1,
+                    "name": "order_item_id",
+                    "comment": ""
+                },
+                "order_id": {
+                    "type": "STRING",
+                    "index": 2,
+                    "name": "order_id",
+                    "comment": ""
+                },
+                "product_id": {
+                    "type": "STRING",
+                    "index": 3,
+                    "name": "product_id",
+                    "comment": ""
+                },
+                "ordered_at": {
+                    "type": "TIMESTAMP",
+                    "index": 4,
+                    "name": "ordered_at",
+                    "comment": ""
+                },
+                "product_name": {
+                    "type": "STRING",
+                    "index": 5,
+                    "name": "product_name",
+                    "comment": ""
+                },
+                "product_price": {
+                    "type": "NUMERIC",
+                    "index": 6,
+                    "name": "product_price",
+                    "comment": ""
+                },
+                "is_food_item": {
+                    "type": "BOOL",
+                    "index": 7,
+                    "name": "is_food_item",
+                    "comment": ""
+                },
+                "is_drink_item": {
+                    "type": "BOOL",
+                    "index": 8,
+                    "name": "is_drink_item",
+                    "comment": ""
+                },
+                "supply_cost": {
+                    "type": "NUMERIC",
+                    "index": 9,
+                    "name": "supply_cost",
+                    "comment": ""
+                }
+            },
+            "stats": {
+                "num_bytes": {
+                    "id": "num_bytes",
+                    "label": "Approximate Size",
+                    "value": 12920249,
+                    "include": true,
+                    "description": "Approximate size of table as reported by BigQuery"
+                },
+                "num_rows": {
+                    "id": "num_rows",
+                    "label": "# Rows",
+                    "value": 90900,
+                    "include": true,
+                    "description": "Approximate count of rows in this table"
+                },
+                "has_stats": {
+                    "id": "has_stats",
+                    "label": "Has Stats?",
+                    "value": true,
+                    "include": false,
+                    "description": "Indicates whether there are statistics for this table"
+                }
+            },
+            "unique_id": "model.jaffle_shop.order_items"
+        },
+        "model.jaffle_shop.orders": {
+            "metadata": {
+                "type": "table",
+                "schema": "dbt",
+                "name": "orders",
+                "database": "lofty-bolt-123",
+                "comment": null,
+                "owner": null
+            },
+            "columns": {
+                "order_id": {
+                    "type": "STRING",
+                    "index": 1,
+                    "name": "order_id",
+                    "comment": ""
+                },
+                "location_id": {
+                    "type": "STRING",
+                    "index": 2,
+                    "name": "location_id",
+                    "comment": ""
+                },
+                "customer_id": {
+                    "type": "STRING",
+                    "index": 3,
+                    "name": "customer_id",
+                    "comment": ""
+                },
+                "subtotal_cents": {
+                    "type": "INT64",
+                    "index": 4,
+                    "name": "subtotal_cents",
+                    "comment": ""
+                },
+                "tax_paid_cents": {
+                    "type": "INT64",
+                    "index": 5,
+                    "name": "tax_paid_cents",
+                    "comment": ""
+                },
+                "order_total_cents": {
+                    "type": "INT64",
+                    "index": 6,
+                    "name": "order_total_cents",
+                    "comment": ""
+                },
+                "subtotal": {
+                    "type": "NUMERIC",
+                    "index": 7,
+                    "name": "subtotal",
+                    "comment": ""
+                },
+                "tax_paid": {
+                    "type": "NUMERIC",
+                    "index": 8,
+                    "name": "tax_paid",
+                    "comment": ""
+                },
+                "order_total": {
+                    "type": "NUMERIC",
+                    "index": 9,
+                    "name": "order_total",
+                    "comment": ""
+                },
+                "ordered_at": {
+                    "type": "TIMESTAMP",
+                    "index": 10,
+                    "name": "ordered_at",
+                    "comment": ""
+                },
+                "order_cost": {
+                    "type": "NUMERIC",
+                    "index": 11,
+                    "name": "order_cost",
+                    "comment": ""
+                },
+                "order_items_subtotal": {
+                    "type": "NUMERIC",
+                    "index": 12,
+                    "name": "order_items_subtotal",
+                    "comment": ""
+                },
+                "count_food_items": {
+                    "type": "INT64",
+                    "index": 13,
+                    "name": "count_food_items",
+                    "comment": ""
+                },
+                "count_drink_items": {
+                    "type": "INT64",
+                    "index": 14,
+                    "name": "count_drink_items",
+                    "comment": ""
+                },
+                "count_order_items": {
+                    "type": "INT64",
+                    "index": 15,
+                    "name": "count_order_items",
+                    "comment": ""
+                },
+                "is_food_order": {
+                    "type": "BOOL",
+                    "index": 16,
+                    "name": "is_food_order",
+                    "comment": ""
+                },
+                "is_drink_order": {
+                    "type": "BOOL",
+                    "index": 17,
+                    "name": "is_drink_order",
+                    "comment": ""
+                },
+                "customer_order_number": {
+                    "type": "INT64",
+                    "index": 18,
+                    "name": "customer_order_number",
+                    "comment": ""
+                },
+                "updated_at": {
+                    "type": "TIMESTAMP",
+                    "index": 19,
+                    "name": "updated_at",
+                    "comment": ""
+                }
+            },
+            "stats": {
+                "num_bytes": {
+                    "id": "num_bytes",
+                    "label": "Approximate Size",
+                    "value": 16574050,
+                    "include": true,
+                    "description": "Approximate size of table as reported by BigQuery"
+                },
+                "num_rows": {
+                    "id": "num_rows",
+                    "label": "# Rows",
+                    "value": 61948,
+                    "include": true,
+                    "description": "Approximate count of rows in this table"
+                },
+                "has_stats": {
+                    "id": "has_stats",
+                    "label": "Has Stats?",
+                    "value": true,
+                    "include": false,
+                    "description": "Indicates whether there are statistics for this table"
+                }
+            },
+            "unique_id": "model.jaffle_shop.orders"
+        },
+        "snapshot.jaffle_shop.orders_snapshot": {
+            "metadata": {
+                "type": "table",
+                "schema": "dbt",
+                "name": "orders_snapshot",
+                "database": "lofty-bolt-123",
+                "comment": null,
+                "owner": null
+            },
+            "columns": {
+                "order_id": {
+                    "type": "STRING",
+                    "index": 1,
+                    "name": "order_id",
+                    "comment": ""
+                },
+                "location_id": {
+                    "type": "STRING",
+                    "index": 2,
+                    "name": "location_id",
+                    "comment": ""
+                },
+                "customer_id": {
+                    "type": "STRING",
+                    "index": 3,
+                    "name": "customer_id",
+                    "comment": ""
+                },
+                "subtotal_cents": {
+                    "type": "INT64",
+                    "index": 4,
+                    "name": "subtotal_cents",
+                    "comment": ""
+                },
+                "tax_paid_cents": {
+                    "type": "INT64",
+                    "index": 5,
+                    "name": "tax_paid_cents",
+                    "comment": ""
+                },
+                "order_total_cents": {
+                    "type": "INT64",
+                    "index": 6,
+                    "name": "order_total_cents",
+                    "comment": ""
+                },
+                "subtotal": {
+                    "type": "NUMERIC",
+                    "index": 7,
+                    "name": "subtotal",
+                    "comment": ""
+                },
+                "tax_paid": {
+                    "type": "NUMERIC",
+                    "index": 8,
+                    "name": "tax_paid",
+                    "comment": ""
+                },
+                "order_total": {
+                    "type": "NUMERIC",
+                    "index": 9,
+                    "name": "order_total",
+                    "comment": ""
+                },
+                "ordered_at": {
+                    "type": "TIMESTAMP",
+                    "index": 10,
+                    "name": "ordered_at",
+                    "comment": ""
+                },
+                "order_cost": {
+                    "type": "NUMERIC",
+                    "index": 11,
+                    "name": "order_cost",
+                    "comment": ""
+                },
+                "order_items_subtotal": {
+                    "type": "NUMERIC",
+                    "index": 12,
+                    "name": "order_items_subtotal",
+                    "comment": ""
+                },
+                "count_food_items": {
+                    "type": "INT64",
+                    "index": 13,
+                    "name": "count_food_items",
+                    "comment": ""
+                },
+                "count_drink_items": {
+                    "type": "INT64",
+                    "index": 14,
+                    "name": "count_drink_items",
+                    "comment": ""
+                },
+                "count_order_items": {
+                    "type": "INT64",
+                    "index": 15,
+                    "name": "count_order_items",
+                    "comment": ""
+                },
+                "is_food_order": {
+                    "type": "BOOL",
+                    "index": 16,
+                    "name": "is_food_order",
+                    "comment": ""
+                },
+                "is_drink_order": {
+                    "type": "BOOL",
+                    "index": 17,
+                    "name": "is_drink_order",
+                    "comment": ""
+                },
+                "customer_order_number": {
+                    "type": "INT64",
+                    "index": 18,
+                    "name": "customer_order_number",
+                    "comment": ""
+                },
+                "updated_at": {
+                    "type": "TIMESTAMP",
+                    "index": 19,
+                    "name": "updated_at",
+                    "comment": ""
+                },
+                "dbt_scd_id": {
+                    "type": "STRING",
+                    "index": 20,
+                    "name": "dbt_scd_id",
+                    "comment": ""
+                },
+                "dbt_updated_at": {
+                    "type": "TIMESTAMP",
+                    "index": 21,
+                    "name": "dbt_updated_at",
+                    "comment": ""
+                },
+                "dbt_valid_from": {
+                    "type": "TIMESTAMP",
+                    "index": 22,
+                    "name": "dbt_valid_from",
+                    "comment": ""
+                },
+                "dbt_valid_to": {
+                    "type": "TIMESTAMP",
+                    "index": 23,
+                    "name": "dbt_valid_to",
+                    "comment": ""
+                }
+            },
+            "stats": {
+                "num_bytes": {
+                    "id": "num_bytes",
+                    "label": "Approximate Size",
+                    "value": 39838484,
+                    "include": true,
+                    "description": "Approximate size of table as reported by BigQuery"
+                },
+                "num_rows": {
+                    "id": "num_rows",
+                    "label": "# Rows",
+                    "value": 123896,
+                    "include": true,
+                    "description": "Approximate count of rows in this table"
+                },
+                "has_stats": {
+                    "id": "has_stats",
+                    "label": "Has Stats?",
+                    "value": true,
+                    "include": false,
+                    "description": "Indicates whether there are statistics for this table"
+                }
+            },
+            "unique_id": "snapshot.jaffle_shop.orders_snapshot"
+        },
+        "model.jaffle_shop.products": {
+            "metadata": {
+                "type": "table",
+                "schema": "dbt",
+                "name": "products",
+                "database": "lofty-bolt-123",
+                "comment": null,
+                "owner": null
+            },
+            "columns": {
+                "product_id": {
+                    "type": "STRING",
+                    "index": 1,
+                    "name": "product_id",
+                    "comment": ""
+                },
+                "product_name": {
+                    "type": "STRING",
+                    "index": 2,
+                    "name": "product_name",
+                    "comment": ""
+                },
+                "product_type": {
+                    "type": "STRING",
+                    "index": 3,
+                    "name": "product_type",
+                    "comment": ""
+                },
+                "product_description": {
+                    "type": "STRING",
+                    "index": 4,
+                    "name": "product_description",
+                    "comment": ""
+                },
+                "product_price": {
+                    "type": "NUMERIC",
+                    "index": 5,
+                    "name": "product_price",
+                    "comment": ""
+                },
+                "is_food_item": {
+                    "type": "BOOL",
+                    "index": 6,
+                    "name": "is_food_item",
+                    "comment": ""
+                },
+                "is_drink_item": {
+                    "type": "BOOL",
+                    "index": 7,
+                    "name": "is_drink_item",
+                    "comment": ""
+                }
+            },
+            "stats": {
+                "num_bytes": {
+                    "id": "num_bytes",
+                    "label": "Approximate Size",
+                    "value": 1049,
+                    "include": true,
+                    "description": "Approximate size of table as reported by BigQuery"
+                },
+                "num_rows": {
+                    "id": "num_rows",
+                    "label": "# Rows",
+                    "value": 10,
+                    "include": true,
+                    "description": "Approximate count of rows in this table"
+                },
+                "has_stats": {
+                    "id": "has_stats",
+                    "label": "Has Stats?",
+                    "value": true,
+                    "include": false,
+                    "description": "Indicates whether there are statistics for this table"
+                }
+            },
+            "unique_id": "model.jaffle_shop.products"
+        },
+        "model.jaffle_shop.stg_customers": {
+            "metadata": {
+                "type": "view",
+                "schema": "dbt",
+                "name": "stg_customers",
+                "database": "lofty-bolt-123",
+                "comment": null,
+                "owner": null
+            },
+            "columns": {
+                "customer_id": {
+                    "type": "STRING",
+                    "index": 1,
+                    "name": "customer_id",
+                    "comment": ""
+                },
+                "customer_name": {
+                    "type": "STRING",
+                    "index": 2,
+                    "name": "customer_name",
+                    "comment": ""
+                },
+                "hardcoded_name": {
+                    "type": "STRING",
+                    "index": 3,
+                    "name": "hardcoded_name",
+                    "comment": ""
+                }
+            },
+            "stats": {
+                "has_stats": {
+                    "id": "has_stats",
+                    "label": "Has Stats?",
+                    "value": false,
+                    "include": false,
+                    "description": "Indicates whether there are statistics for this table"
+                }
+            },
+            "unique_id": "model.jaffle_shop.stg_customers"
+        },
+        "model.jaffle_shop.stg_locations": {
+            "metadata": {
+                "type": "view",
+                "schema": "dbt",
+                "name": "stg_locations",
+                "database": "lofty-bolt-123",
+                "comment": null,
+                "owner": null
+            },
+            "columns": {
+                "location_id": {
+                    "type": "STRING",
+                    "index": 1,
+                    "name": "location_id",
+                    "comment": ""
+                },
+                "location_name": {
+                    "type": "STRING",
+                    "index": 2,
+                    "name": "location_name",
+                    "comment": ""
+                },
+                "tax_rate": {
+                    "type": "FLOAT64",
+                    "index": 3,
+                    "name": "tax_rate",
+                    "comment": ""
+                },
+                "opened_date": {
+                    "type": "TIMESTAMP",
+                    "index": 4,
+                    "name": "opened_date",
+                    "comment": ""
+                }
+            },
+            "stats": {
+                "has_stats": {
+                    "id": "has_stats",
+                    "label": "Has Stats?",
+                    "value": false,
+                    "include": false,
+                    "description": "Indicates whether there are statistics for this table"
+                }
+            },
+            "unique_id": "model.jaffle_shop.stg_locations"
+        },
+        "model.jaffle_shop.stg_order_items": {
+            "metadata": {
+                "type": "view",
+                "schema": "dbt",
+                "name": "stg_order_items",
+                "database": "lofty-bolt-123",
+                "comment": null,
+                "owner": null
+            },
+            "columns": {
+                "order_item_id": {
+                    "type": "STRING",
+                    "index": 1,
+                    "name": "order_item_id",
+                    "comment": ""
+                },
+                "order_id": {
+                    "type": "STRING",
+                    "index": 2,
+                    "name": "order_id",
+                    "comment": ""
+                },
+                "product_id": {
+                    "type": "STRING",
+                    "index": 3,
+                    "name": "product_id",
+                    "comment": ""
+                }
+            },
+            "stats": {
+                "has_stats": {
+                    "id": "has_stats",
+                    "label": "Has Stats?",
+                    "value": false,
+                    "include": false,
+                    "description": "Indicates whether there are statistics for this table"
+                }
+            },
+            "unique_id": "model.jaffle_shop.stg_order_items"
+        },
+        "model.jaffle_shop.stg_orders": {
+            "metadata": {
+                "type": "view",
+                "schema": "dbt",
+                "name": "stg_orders",
+                "database": "lofty-bolt-123",
+                "comment": null,
+                "owner": null
+            },
+            "columns": {
+                "order_id": {
+                    "type": "STRING",
+                    "index": 1,
+                    "name": "order_id",
+                    "comment": ""
+                },
+                "location_id": {
+                    "type": "STRING",
+                    "index": 2,
+                    "name": "location_id",
+                    "comment": ""
+                },
+                "customer_id": {
+                    "type": "STRING",
+                    "index": 3,
+                    "name": "customer_id",
+                    "comment": ""
+                },
+                "subtotal_cents": {
+                    "type": "INT64",
+                    "index": 4,
+                    "name": "subtotal_cents",
+                    "comment": ""
+                },
+                "tax_paid_cents": {
+                    "type": "INT64",
+                    "index": 5,
+                    "name": "tax_paid_cents",
+                    "comment": ""
+                },
+                "order_total_cents": {
+                    "type": "INT64",
+                    "index": 6,
+                    "name": "order_total_cents",
+                    "comment": ""
+                },
+                "subtotal": {
+                    "type": "NUMERIC",
+                    "index": 7,
+                    "name": "subtotal",
+                    "comment": ""
+                },
+                "tax_paid": {
+                    "type": "NUMERIC",
+                    "index": 8,
+                    "name": "tax_paid",
+                    "comment": ""
+                },
+                "order_total": {
+                    "type": "NUMERIC",
+                    "index": 9,
+                    "name": "order_total",
+                    "comment": ""
+                },
+                "ordered_at": {
+                    "type": "TIMESTAMP",
+                    "index": 10,
+                    "name": "ordered_at",
+                    "comment": ""
+                }
+            },
+            "stats": {
+                "has_stats": {
+                    "id": "has_stats",
+                    "label": "Has Stats?",
+                    "value": false,
+                    "include": false,
+                    "description": "Indicates whether there are statistics for this table"
+                }
+            },
+            "unique_id": "model.jaffle_shop.stg_orders"
+        },
+        "model.jaffle_shop.stg_products": {
+            "metadata": {
+                "type": "view",
+                "schema": "dbt",
+                "name": "stg_products",
+                "database": "lofty-bolt-123",
+                "comment": null,
+                "owner": null
+            },
+            "columns": {
+                "product_id": {
+                    "type": "STRING",
+                    "index": 1,
+                    "name": "product_id",
+                    "comment": ""
+                },
+                "product_name": {
+                    "type": "STRING",
+                    "index": 2,
+                    "name": "product_name",
+                    "comment": ""
+                },
+                "product_type": {
+                    "type": "STRING",
+                    "index": 3,
+                    "name": "product_type",
+                    "comment": ""
+                },
+                "product_description": {
+                    "type": "STRING",
+                    "index": 4,
+                    "name": "product_description",
+                    "comment": ""
+                },
+                "product_price": {
+                    "type": "NUMERIC",
+                    "index": 5,
+                    "name": "product_price",
+                    "comment": ""
+                },
+                "is_food_item": {
+                    "type": "BOOL",
+                    "index": 6,
+                    "name": "is_food_item",
+                    "comment": ""
+                },
+                "is_drink_item": {
+                    "type": "BOOL",
+                    "index": 7,
+                    "name": "is_drink_item",
+                    "comment": ""
+                }
+            },
+            "stats": {
+                "has_stats": {
+                    "id": "has_stats",
+                    "label": "Has Stats?",
+                    "value": false,
+                    "include": false,
+                    "description": "Indicates whether there are statistics for this table"
+                }
+            },
+            "unique_id": "model.jaffle_shop.stg_products"
+        },
+        "model.jaffle_shop.stg_supplies": {
+            "metadata": {
+                "type": "view",
+                "schema": "dbt",
+                "name": "stg_supplies",
+                "database": "lofty-bolt-123",
+                "comment": null,
+                "owner": null
+            },
+            "columns": {
+                "supply_uuid": {
+                    "type": "STRING",
+                    "index": 1,
+                    "name": "supply_uuid",
+                    "comment": ""
+                },
+                "supply_id": {
+                    "type": "STRING",
+                    "index": 2,
+                    "name": "supply_id",
+                    "comment": ""
+                },
+                "product_id": {
+                    "type": "STRING",
+                    "index": 3,
+                    "name": "product_id",
+                    "comment": ""
+                },
+                "supply_name": {
+                    "type": "STRING",
+                    "index": 4,
+                    "name": "supply_name",
+                    "comment": ""
+                },
+                "supply_cost": {
+                    "type": "NUMERIC",
+                    "index": 5,
+                    "name": "supply_cost",
+                    "comment": ""
+                },
+                "is_perishable_supply": {
+                    "type": "BOOL",
+                    "index": 6,
+                    "name": "is_perishable_supply",
+                    "comment": ""
+                }
+            },
+            "stats": {
+                "has_stats": {
+                    "id": "has_stats",
+                    "label": "Has Stats?",
+                    "value": false,
+                    "include": false,
+                    "description": "Indicates whether there are statistics for this table"
+                }
+            },
+            "unique_id": "model.jaffle_shop.stg_supplies"
+        },
+        "model.jaffle_shop.supplies": {
+            "metadata": {
+                "type": "table",
+                "schema": "dbt",
+                "name": "supplies",
+                "database": "lofty-bolt-123",
+                "comment": null,
+                "owner": null
+            },
+            "columns": {
+                "supply_uuid": {
+                    "type": "STRING",
+                    "index": 1,
+                    "name": "supply_uuid",
+                    "comment": ""
+                },
+                "supply_id": {
+                    "type": "STRING",
+                    "index": 2,
+                    "name": "supply_id",
+                    "comment": ""
+                },
+                "product_id": {
+                    "type": "STRING",
+                    "index": 3,
+                    "name": "product_id",
+                    "comment": ""
+                },
+                "supply_name": {
+                    "type": "STRING",
+                    "index": 4,
+                    "name": "supply_name",
+                    "comment": ""
+                },
+                "supply_cost": {
+                    "type": "NUMERIC",
+                    "index": 5,
+                    "name": "supply_cost",
+                    "comment": ""
+                },
+                "is_perishable_supply": {
+                    "type": "BOOL",
+                    "index": 6,
+                    "name": "is_perishable_supply",
+                    "comment": ""
+                }
+            },
+            "stats": {
+                "num_bytes": {
+                    "id": "num_bytes",
+                    "label": "Approximate Size",
+                    "value": 5533,
+                    "include": true,
+                    "description": "Approximate size of table as reported by BigQuery"
+                },
+                "num_rows": {
+                    "id": "num_rows",
+                    "label": "# Rows",
+                    "value": 65,
+                    "include": true,
+                    "description": "Approximate count of rows in this table"
+                },
+                "has_stats": {
+                    "id": "has_stats",
+                    "label": "Has Stats?",
+                    "value": true,
+                    "include": false,
+                    "description": "Indicates whether there are statistics for this table"
+                }
+            },
+            "unique_id": "model.jaffle_shop.supplies"
+        }
+    },
+    "sources": {
+        "source.jaffle_shop.ecom.raw_customers": {
+            "metadata": {
+                "type": "table",
+                "schema": "raw",
+                "name": "raw_customers",
+                "database": "lofty-bolt-123",
+                "comment": null,
+                "owner": null
+            },
+            "columns": {
+                "id": {
+                    "type": "STRING",
+                    "index": 1,
+                    "name": "id",
+                    "comment": ""
+                },
+                "name": {
+                    "type": "STRING",
+                    "index": 2,
+                    "name": "name",
+                    "comment": ""
+                }
+            },
+            "stats": {
+                "num_bytes": {
+                    "id": "num_bytes",
+                    "label": "Approximate Size",
+                    "value": 49854,
+                    "include": true,
+                    "description": "Approximate size of table as reported by BigQuery"
+                },
+                "num_rows": {
+                    "id": "num_rows",
+                    "label": "# Rows",
+                    "value": 935,
+                    "include": true,
+                    "description": "Approximate count of rows in this table"
+                },
+                "has_stats": {
+                    "id": "has_stats",
+                    "label": "Has Stats?",
+                    "value": true,
+                    "include": false,
+                    "description": "Indicates whether there are statistics for this table"
+                }
+            },
+            "unique_id": "source.jaffle_shop.ecom.raw_customers"
+        },
+        "source.jaffle_shop.ecom.raw_items": {
+            "metadata": {
+                "type": "table",
+                "schema": "raw",
+                "name": "raw_items",
+                "database": "lofty-bolt-123",
+                "comment": null,
+                "owner": null
+            },
+            "columns": {
+                "id": {
+                    "type": "STRING",
+                    "index": 1,
+                    "name": "id",
+                    "comment": ""
+                },
+                "order_id": {
+                    "type": "STRING",
+                    "index": 2,
+                    "name": "order_id",
+                    "comment": ""
+                },
+                "sku": {
+                    "type": "STRING",
+                    "index": 3,
+                    "name": "sku",
+                    "comment": ""
+                }
+            },
+            "stats": {
+                "num_bytes": {
+                    "id": "num_bytes",
+                    "label": "Approximate Size",
+                    "value": 7726500,
+                    "include": true,
+                    "description": "Approximate size of table as reported by BigQuery"
+                },
+                "num_rows": {
+                    "id": "num_rows",
+                    "label": "# Rows",
+                    "value": 90900,
+                    "include": true,
+                    "description": "Approximate count of rows in this table"
+                },
+                "has_stats": {
+                    "id": "has_stats",
+                    "label": "Has Stats?",
+                    "value": true,
+                    "include": false,
+                    "description": "Indicates whether there are statistics for this table"
+                }
+            },
+            "unique_id": "source.jaffle_shop.ecom.raw_items"
+        },
+        "source.jaffle_shop.ecom.raw_orders": {
+            "metadata": {
+                "type": "table",
+                "schema": "raw",
+                "name": "raw_orders",
+                "database": "lofty-bolt-123",
+                "comment": null,
+                "owner": null
+            },
+            "columns": {
+                "id": {
+                    "type": "STRING",
+                    "index": 1,
+                    "name": "id",
+                    "comment": ""
+                },
+                "customer": {
+                    "type": "STRING",
+                    "index": 2,
+                    "name": "customer",
+                    "comment": ""
+                },
+                "ordered_at": {
+                    "type": "DATETIME",
+                    "index": 3,
+                    "name": "ordered_at",
+                    "comment": ""
+                },
+                "store_id": {
+                    "type": "STRING",
+                    "index": 4,
+                    "name": "store_id",
+                    "comment": ""
+                },
+                "subtotal": {
+                    "type": "INT64",
+                    "index": 5,
+                    "name": "subtotal",
+                    "comment": ""
+                },
+                "tax_paid": {
+                    "type": "INT64",
+                    "index": 6,
+                    "name": "tax_paid",
+                    "comment": ""
+                },
+                "order_total": {
+                    "type": "INT64",
+                    "index": 7,
+                    "name": "order_total",
+                    "comment": ""
+                }
+            },
+            "stats": {
+                "num_bytes": {
+                    "id": "num_bytes",
+                    "label": "Approximate Size",
+                    "value": 9044408,
+                    "include": true,
+                    "description": "Approximate size of table as reported by BigQuery"
+                },
+                "num_rows": {
+                    "id": "num_rows",
+                    "label": "# Rows",
+                    "value": 61948,
+                    "include": true,
+                    "description": "Approximate count of rows in this table"
+                },
+                "has_stats": {
+                    "id": "has_stats",
+                    "label": "Has Stats?",
+                    "value": true,
+                    "include": false,
+                    "description": "Indicates whether there are statistics for this table"
+                }
+            },
+            "unique_id": "source.jaffle_shop.ecom.raw_orders"
+        },
+        "source.jaffle_shop.ecom.raw_products": {
+            "metadata": {
+                "type": "table",
+                "schema": "raw",
+                "name": "raw_products",
+                "database": "lofty-bolt-123",
+                "comment": null,
+                "owner": null
+            },
+            "columns": {
+                "sku": {
+                    "type": "STRING",
+                    "index": 1,
+                    "name": "sku",
+                    "comment": ""
+                },
+                "name": {
+                    "type": "STRING",
+                    "index": 2,
+                    "name": "name",
+                    "comment": ""
+                },
+                "type": {
+                    "type": "STRING",
+                    "index": 3,
+                    "name": "type",
+                    "comment": ""
+                },
+                "price": {
+                    "type": "INT64",
+                    "index": 4,
+                    "name": "price",
+                    "comment": ""
+                },
+                "description": {
+                    "type": "STRING",
+                    "index": 5,
+                    "name": "description",
+                    "comment": ""
+                }
+            },
+            "stats": {
+                "num_bytes": {
+                    "id": "num_bytes",
+                    "label": "Approximate Size",
+                    "value": 949,
+                    "include": true,
+                    "description": "Approximate size of table as reported by BigQuery"
+                },
+                "num_rows": {
+                    "id": "num_rows",
+                    "label": "# Rows",
+                    "value": 10,
+                    "include": true,
+                    "description": "Approximate count of rows in this table"
+                },
+                "has_stats": {
+                    "id": "has_stats",
+                    "label": "Has Stats?",
+                    "value": true,
+                    "include": false,
+                    "description": "Indicates whether there are statistics for this table"
+                }
+            },
+            "unique_id": "source.jaffle_shop.ecom.raw_products"
+        },
+        "source.jaffle_shop.ecom.raw_stores": {
+            "metadata": {
+                "type": "table",
+                "schema": "raw",
+                "name": "raw_stores",
+                "database": "lofty-bolt-123",
+                "comment": null,
+                "owner": null
+            },
+            "columns": {
+                "id": {
+                    "type": "STRING",
+                    "index": 1,
+                    "name": "id",
+                    "comment": ""
+                },
+                "name": {
+                    "type": "STRING",
+                    "index": 2,
+                    "name": "name",
+                    "comment": ""
+                },
+                "opened_at": {
+                    "type": "DATETIME",
+                    "index": 3,
+                    "name": "opened_at",
+                    "comment": ""
+                },
+                "tax_rate": {
+                    "type": "FLOAT64",
+                    "index": 4,
+                    "name": "tax_rate",
+                    "comment": ""
+                }
+            },
+            "stats": {
+                "num_bytes": {
+                    "id": "num_bytes",
+                    "label": "Approximate Size",
+                    "value": 398,
+                    "include": true,
+                    "description": "Approximate size of table as reported by BigQuery"
+                },
+                "num_rows": {
+                    "id": "num_rows",
+                    "label": "# Rows",
+                    "value": 6,
+                    "include": true,
+                    "description": "Approximate count of rows in this table"
+                },
+                "has_stats": {
+                    "id": "has_stats",
+                    "label": "Has Stats?",
+                    "value": true,
+                    "include": false,
+                    "description": "Indicates whether there are statistics for this table"
+                }
+            },
+            "unique_id": "source.jaffle_shop.ecom.raw_stores"
+        },
+        "source.jaffle_shop.ecom.raw_supplies": {
+            "metadata": {
+                "type": "table",
+                "schema": "raw",
+                "name": "raw_supplies",
+                "database": "lofty-bolt-123",
+                "comment": null,
+                "owner": null
+            },
+            "columns": {
+                "id": {
+                    "type": "STRING",
+                    "index": 1,
+                    "name": "id",
+                    "comment": ""
+                },
+                "name": {
+                    "type": "STRING",
+                    "index": 2,
+                    "name": "name",
+                    "comment": ""
+                },
+                "cost": {
+                    "type": "INT64",
+                    "index": 3,
+                    "name": "cost",
+                    "comment": ""
+                },
+                "perishable": {
+                    "type": "BOOL",
+                    "index": 4,
+                    "name": "perishable",
+                    "comment": ""
+                },
+                "sku": {
+                    "type": "STRING",
+                    "index": 5,
+                    "name": "sku",
+                    "comment": ""
+                }
+            },
+            "stats": {
+                "num_bytes": {
+                    "id": "num_bytes",
+                    "label": "Approximate Size",
+                    "value": 2803,
+                    "include": true,
+                    "description": "Approximate size of table as reported by BigQuery"
+                },
+                "num_rows": {
+                    "id": "num_rows",
+                    "label": "# Rows",
+                    "value": 65,
+                    "include": true,
+                    "description": "Approximate count of rows in this table"
+                },
+                "has_stats": {
+                    "id": "has_stats",
+                    "label": "Has Stats?",
+                    "value": true,
+                    "include": false,
+                    "description": "Indicates whether there are statistics for this table"
+                }
+            },
+            "unique_id": "source.jaffle_shop.ecom.raw_supplies"
+        }
+    },
+    "errors": null
+}

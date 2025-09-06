@@ -551,11 +551,27 @@ class DbtColumnLineageExtractor:
             dbt_node = self.node_mapping[table_name].lower()
         else:
             # Check if the table is hardcoded in raw code.
-            if table_name.lower() in self.manifest["nodes"][model_node]["raw_code"].lower():
-                dbt_node = f"_HARDCODED_REF___{table_name.lower()}"
-            elif node.source.catalog == "" and f"{node.source.db}.{node.source.name}".lower() in self.manifest["nodes"][model_node]["raw_code"].lower():
-                dbt_node = f"_HARDCODED_REF___{table_name.lower()}"
-            else:
+            raw_code = self.manifest["nodes"][model_node]["raw_code"].lower()
+
+            # Try different variations of the table name
+            table_variations = [
+                table_name,  # full: .public.customers_hardcoded or test_db.public.customers_hardcoded
+                table_name.lstrip("."),  # without leading dot: public.customers_hardcoded
+                f"{node.source.db}.{node.source.name}".lower(),  # db.table: public.customers_hardcoded
+                node.source.name.lower(),  # just table name: customers_hardcoded
+            ]
+
+            # Remove duplicates while preserving order
+            table_variations = list(dict.fromkeys(table_variations))
+
+            found_hardcoded = False
+            for variation in table_variations:
+                if variation and variation in raw_code:
+                    dbt_node = f"_HARDCODED_REF___{table_name.lower()}"
+                    found_hardcoded = True
+                    break
+
+            if not found_hardcoded:
                 warnings.warn(f"Table {table_name} not found in node mapping")
                 dbt_node = f"_NOT_FOUND___{table_name.lower()}"
             # raise ValueError(f"Table {table_name} not found in node mapping")

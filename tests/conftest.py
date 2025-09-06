@@ -3,6 +3,38 @@ import glob
 import json
 
 
+def get_dialect_from_test_data_dir(test_data_dir: str) -> str:
+    """
+    Determine the SQL dialect from the test data directory name.
+    
+    Args:
+        test_data_dir: Path to test data directory (e.g., 'tests/test_data/bigquery')
+        
+    Returns:
+        SQL dialect string (e.g., 'bigquery', 'snowflake')
+    """
+    if test_data_dir is None:
+        return "snowflake"  # default fallback
+    
+    # Extract directory name from path
+    dir_name = os.path.basename(test_data_dir)
+    
+    # Dialect mapping based on directory names
+    dialect_mapping = {
+        "1.8": "snowflake",      # dbt 1.8 typically uses snowflake
+        "1.9": "snowflake",      # dbt 1.9 typically uses snowflake  
+        "1.10": "snowflake",     # dbt 1.10 typically uses snowflake
+        "bigquery": "bigquery",  # BigQuery data uses bigquery dialect
+        "postgres": "postgres",  # PostgreSQL data uses postgres dialect
+        "mysql": "mysql",        # MySQL data uses mysql dialect
+        "redshift": "redshift",  # Redshift data uses redshift dialect
+        "sqlite": "sqlite",      # SQLite data uses sqlite dialect
+        "duckdb": "duckdb",      # DuckDB data uses duckdb dialect
+    }
+    
+    return dialect_mapping.get(dir_name, "snowflake")
+
+
 
 def _test_data_base_dir() -> str:
     return os.path.join("tests", "test_data")
