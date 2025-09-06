@@ -772,9 +772,11 @@ class DBTNodeManifest:
     def __init__(self, node_data):
         self.database = node_data["database"]
         self.schema = node_data["schema"]
-        # For sources, use identifier if it exists, otherwise use name
-        # identifier is the actual table name in the database
-        self.name = node_data.get("identifier", node_data["name"])
+        # Check alias first
+        if node_data.get("alias"):
+            self.name = node_data.get("alias")
+        else:
+            self.name = node_data.get("identifier", node_data["name"])
         self.columns = node_data["columns"]
 
     @property
