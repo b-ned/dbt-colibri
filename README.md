@@ -110,7 +110,12 @@ Gitlab has similar functionality. Other options are writing the file to a bucket
 
 - **Python**: tested on versions 3.9, 3.11, 3.13
 
-- **supported dbt Adapters**: Snowflake, BigQuery, Redshift, duckDB 
+- **Supported dbt Adapters**: 
+   - Snowflake, 
+   - BigQuery, 
+   - Redshift, 
+   - duckDB, 
+   - Postgres
 
 ### dbt Compatibility
 
