@@ -1,6 +1,6 @@
 
 
-![dbt-colibri header](https://github.com/b-ned/dbt-colibri/blob/d31ece39bacf862e485233aad3e84df9a7618946/static/colibri_header.png)
+![dbt-colibri fheader](https://github.com/b-ned/dbt-colibri/blob/d31ece39bacf862e485233aad3e84df9a7618946/static/colibri_header.png)
 
 [![PyPI version](https://badge.fury.io/py/dbt-colibri.svg)](https://badge.fury.io/py/dbt-colibri)
 [![Python Support](https://img.shields.io/pypi/pyversions/dbt-colibri.svg)](https://pypi.org/project/dbt-colibri/)
@@ -110,7 +110,12 @@ Gitlab has similar functionality. Other options are writing the file to a bucket
 
 - **Python**: tested on versions 3.9, 3.11, 3.13
 
-- **supported dbt Adapters**: Snowflake, BigQuery, Redshift, duckDB 
+- **Supported dbt Adapters**: 
+   - Snowflake, 
+   - BigQuery, 
+   - Redshift, 
+   - duckDB, 
+   - Postgres
 
 ### dbt Compatibility
 
