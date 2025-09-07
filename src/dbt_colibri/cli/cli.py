@@ -54,14 +54,7 @@ def cli():
     help="Enable debug-level logging"
 )
 
-@click.option(
-    "--dialect",
-    default='snowflake',
-    help="SQL dialect of your project (default: snowflake)",
-    type=click.Choice(['snowflake', 'bigquery', 'redshift', 'duckdb'], case_sensitive=False)
-)
-
-def generate_report(output_dir, manifest, catalog, debug, dialect):
+def generate_report(output_dir, manifest, catalog, debug):
     """Generate a dbt-colibri lineage report with both JSON and HTML output."""
     import logging
     from ..utils import log
@@ -81,7 +74,7 @@ def generate_report(output_dir, manifest, catalog, debug, dialect):
             sys.exit(1)
 
         click.echo("🔍 Loading dbt manifest and catalog...")
-        extractor = DbtColumnLineageExtractor(manifest, catalog, dialect=dialect)
+        extractor = DbtColumnLineageExtractor(manifest, catalog)
 
         click.echo("📊 Extracting lineage data...")
         report_generator = DbtColibriReportGenerator(extractor)

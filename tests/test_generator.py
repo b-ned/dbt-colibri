@@ -10,8 +10,7 @@ def test_build_manifest_node_data_node_not_found(dbt_valid_test_data_dir):
         pytest.skip("No valid versioned test data present")
     extractor = DbtColumnLineageExtractor(
         manifest_path=f"{dbt_valid_test_data_dir}/manifest.json",
-        catalog_path=f"{dbt_valid_test_data_dir}/catalog.json",
-        dialect="snowflake"
+        catalog_path=f"{dbt_valid_test_data_dir}/catalog.json"
     )
     
     # Create a report generator instance
@@ -56,8 +55,7 @@ def test_detect_model_type_with_non_existent_node(dbt_valid_test_data_dir):
         pytest.skip("No valid versioned test data present")
     extractor = DbtColumnLineageExtractor(
         manifest_path=f"{dbt_valid_test_data_dir}/manifest.json",
-        catalog_path=f"{dbt_valid_test_data_dir}/catalog.json",
-        dialect="snowflake"
+        catalog_path=f"{dbt_valid_test_data_dir}/catalog.json"
     )
     
     report_generator = DbtColibriReportGenerator(extractor)
@@ -86,8 +84,7 @@ def test_ensure_node_with_missing_node_creates_default(dbt_valid_test_data_dir):
         pytest.skip("No valid versioned test data present")
     extractor = DbtColumnLineageExtractor(
         manifest_path=f"{dbt_valid_test_data_dir}/manifest.json",
-        catalog_path=f"{dbt_valid_test_data_dir}/catalog.json",
-        dialect="snowflake"
+        catalog_path=f"{dbt_valid_test_data_dir}/catalog.json"
     )
     
     report_generator = DbtColibriReportGenerator(extractor)
@@ -144,8 +141,7 @@ def test_generated_report_excludes_test_nodes(dbt_valid_test_data_dir):
 
     extractor = DbtColumnLineageExtractor(
         manifest_path=manifest_path,
-        catalog_path=catalog_path,
-        dialect="snowflake",
+        catalog_path=catalog_path
     )
     report_generator = DbtColibriReportGenerator(extractor)
     result = report_generator.build_full_lineage()

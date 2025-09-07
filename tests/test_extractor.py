@@ -1,38 +1,85 @@
 import pytest
 import os
+import json
+import tempfile
 from dbt_colibri.lineage_extractor.extractor import DbtColumnLineageExtractor
 from unittest.mock import patch, MagicMock
 from sqlglot.lineage import SqlglotError
 
 
-def get_dialect_from_test_data_dir(test_data_dir: str) -> str:
-    """
-    Determine the SQL dialect from the test data directory name.
+def test_adapter_type_validation_missing_adapter_type(dbt_valid_test_data_dir):
+    """Test that missing adapter_type in manifest raises ValueError"""
+    if dbt_valid_test_data_dir is None:
+        pytest.skip("No valid versioned test data present")
     
-    Args:
-        test_data_dir: Path to test data directory (e.g., 'tests/test_data/bigquery')
-        
-    Returns:
-        SQL dialect string (e.g., 'bigquery', 'snowflake')
-    """
+    # Create a manifest without adapter_type
+    with open(f"{dbt_valid_test_data_dir}/manifest.json", "r") as f:
+        manifest_data = json.load(f)
     
-    # Extract directory name from path
-    dir_name = os.path.basename(test_data_dir)
+    # Remove adapter_type from metadata
+    if "metadata" in manifest_data and "adapter_type" in manifest_data["metadata"]:
+        del manifest_data["metadata"]["adapter_type"]
     
-    # Dialect mapping based on directory names
-    dialect_mapping = {
-        "1.8": "snowflake",      # dbt 1.8 typically uses snowflake
-        "1.9": "snowflake",      # dbt 1.9 typically uses snowflake  
-        "1.10": "snowflake",     # dbt 1.10 typically uses snowflake
-        "bigquery": "bigquery",  # BigQuery data uses bigquery dialect
-        "postgres": "postgres",  # PostgreSQL data uses postgres dialect
-        "mysql": "mysql",        # MySQL data uses mysql dialect
-        "redshift": "redshift",  # Redshift data uses redshift dialect
-        "sqlite": "sqlite",      # SQLite data uses sqlite dialect
-        "duckdb": "duckdb",      # DuckDB data uses duckdb dialect
-    }
+    # Write modified manifest to temp file
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as temp_manifest:
+        json.dump(manifest_data, temp_manifest)
+        temp_manifest_path = temp_manifest.name
     
-    return dialect_mapping.get(dir_name, "snowflake")
+    try:
+        with pytest.raises(ValueError, match="adapter_type not found in manifest metadata"):
+            DbtColumnLineageExtractor(
+                manifest_path=temp_manifest_path,
+                catalog_path=f"{dbt_valid_test_data_dir}/catalog.json"
+            )
+    finally:
+        os.unlink(temp_manifest_path)
+
+
+def test_adapter_type_validation_unsupported_adapter(dbt_valid_test_data_dir):
+    """Test that unsupported adapter_type raises ValueError"""
+    if dbt_valid_test_data_dir is None:
+        pytest.skip("No valid versioned test data present")
+    
+    # Create a manifest with unsupported adapter_type
+    with open(f"{dbt_valid_test_data_dir}/manifest.json", "r") as f:
+        manifest_data = json.load(f)
+    
+    # Set unsupported adapter_type
+    if "metadata" not in manifest_data:
+        manifest_data["metadata"] = {}
+    manifest_data["metadata"]["adapter_type"] = "unsupported_adapter"
+    
+    # Write modified manifest to temp file
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as temp_manifest:
+        json.dump(manifest_data, temp_manifest)
+        temp_manifest_path = temp_manifest.name
+    
+    try:
+        with pytest.raises(ValueError, match="Unsupported adapter type 'unsupported_adapter'"):
+            DbtColumnLineageExtractor(
+                manifest_path=temp_manifest_path,
+                catalog_path=f"{dbt_valid_test_data_dir}/catalog.json"
+            )
+    finally:
+        os.unlink(temp_manifest_path)
+
+
+def test_adapter_type_detection_bigquery():
+    """Test that BigQuery adapter type is correctly detected"""
+    extractor = DbtColumnLineageExtractor(
+        manifest_path="tests/test_data/bigquery/manifest.json",
+        catalog_path="tests/test_data/bigquery/catalog.json"
+    )
+    assert extractor.dialect == "bigquery"
+
+
+def test_adapter_type_detection_duckdb():
+    """Test that DuckDB adapter type is correctly detected"""
+    extractor = DbtColumnLineageExtractor(
+        manifest_path="tests/test_data/duckdb/manifest.json",
+        catalog_path="tests/test_data/duckdb/catalog.json"
+    )
+    assert extractor.dialect == "duckdb"
 
 def test_extractor_initialization(dbt_valid_test_data_dir):
     """Test that the extractor can be initialized with valid parameters."""
@@ -42,7 +89,6 @@ def test_extractor_initialization(dbt_valid_test_data_dir):
     extractor = DbtColumnLineageExtractor(
         manifest_path=f"{dbt_valid_test_data_dir}/manifest.json",
         catalog_path=f"{dbt_valid_test_data_dir}/catalog.json",
-        dialect=get_dialect_from_test_data_dir(dbt_valid_test_data_dir)
     )
 
     assert isinstance(extractor, DbtColumnLineageExtractor)
@@ -80,14 +126,11 @@ def test_schema_dict_generation(dbt_valid_test_data_dir):
     if dbt_valid_test_data_dir is None:
         pytest.skip("No valid versioned test data present")
     
-    # Dynamically determine dialect from test data directory
-    dialect = get_dialect_from_test_data_dir(dbt_valid_test_data_dir)
     
     # We'll pick any model from manifest to narrow the schema if possible
     tmp_extractor = DbtColumnLineageExtractor(
         manifest_path=f"{dbt_valid_test_data_dir}/manifest.json",
-        catalog_path=f"{dbt_valid_test_data_dir}/catalog.json",
-        dialect=dialect
+        catalog_path=f"{dbt_valid_test_data_dir}/catalog.json"
     )
     some_model = next((
         node_id for node_id, node_data in tmp_extractor.manifest.get("nodes", {}).items()
@@ -96,8 +139,7 @@ def test_schema_dict_generation(dbt_valid_test_data_dir):
     extractor = DbtColumnLineageExtractor(
         manifest_path=f"{dbt_valid_test_data_dir}/manifest.json",
         catalog_path=f"{dbt_valid_test_data_dir}/catalog.json",
-        selected_models=[some_model] if some_model else None,
-        dialect=dialect
+        selected_models=[some_model] if some_model else None
     )
     
     # Verify schema_dict structure
@@ -130,13 +172,9 @@ def test_node_mapping(dbt_valid_test_data_dir):
     if dbt_valid_test_data_dir is None:
         pytest.skip("No valid versioned test data present")
     
-    # Dynamically determine dialect from test data directory
-    dialect = get_dialect_from_test_data_dir(dbt_valid_test_data_dir)
-    
     extractor = DbtColumnLineageExtractor(
         manifest_path=f"{dbt_valid_test_data_dir}/manifest.json",
-        catalog_path=f"{dbt_valid_test_data_dir}/catalog.json",
-        dialect=dialect
+        catalog_path=f"{dbt_valid_test_data_dir}/catalog.json"
     )
     
     # Verify node_mapping structure
@@ -154,13 +192,9 @@ def test_get_list_of_columns(dbt_valid_test_data_dir):
     if dbt_valid_test_data_dir is None:
         pytest.skip("No valid versioned test data present")
     
-    # Dynamically determine dialect from test data directory
-    dialect = get_dialect_from_test_data_dir(dbt_valid_test_data_dir)
-    
     extractor = DbtColumnLineageExtractor(
         manifest_path=f"{dbt_valid_test_data_dir}/manifest.json",
-        catalog_path=f"{dbt_valid_test_data_dir}/catalog.json",
-        dialect=dialect
+        catalog_path=f"{dbt_valid_test_data_dir}/catalog.json"
     )
     
     # Try with a known model
@@ -185,13 +219,9 @@ def test_get_parent_nodes_catalog(dbt_valid_test_data_dir):
     if dbt_valid_test_data_dir is None:
         pytest.skip("No valid versioned test data present")
     
-    # Dynamically determine dialect from test data directory
-    dialect = get_dialect_from_test_data_dir(dbt_valid_test_data_dir)
-    
     extractor = DbtColumnLineageExtractor(
         manifest_path=f"{dbt_valid_test_data_dir}/manifest.json",
-        catalog_path=f"{dbt_valid_test_data_dir}/catalog.json",
-        dialect=dialect
+        catalog_path=f"{dbt_valid_test_data_dir}/catalog.json"
     )
     
     # Get a model that has dependencies
@@ -223,13 +253,9 @@ def test_get_parents_snapshot_catalog(dbt_valid_test_data_dir):
     if dbt_valid_test_data_dir is None:
         pytest.skip("No valid versioned test data present")
     
-    # Dynamically determine dialect from test data directory
-    dialect = get_dialect_from_test_data_dir(dbt_valid_test_data_dir)
-    
     extractor = DbtColumnLineageExtractor(
         manifest_path=f"{dbt_valid_test_data_dir}/manifest.json",
-        catalog_path=f"{dbt_valid_test_data_dir}/catalog.json",
-        dialect=dialect
+        catalog_path=f"{dbt_valid_test_data_dir}/catalog.json"
     )
     
     # Get a model that has dependencies
@@ -260,13 +286,9 @@ def test_generate_schema_dict_snapshot_catalog(dbt_valid_test_data_dir):
     if dbt_valid_test_data_dir is None:
         pytest.skip("No valid versioned test data present")
     
-    # Dynamically determine dialect from test data directory
-    dialect = get_dialect_from_test_data_dir(dbt_valid_test_data_dir)
-    
     extractor = DbtColumnLineageExtractor(
         manifest_path=f"{dbt_valid_test_data_dir}/manifest.json",
-        catalog_path=f"{dbt_valid_test_data_dir}/catalog.json",
-        dialect=dialect
+        catalog_path=f"{dbt_valid_test_data_dir}/catalog.json"
     )
     
     # Get a model that has dependencies
@@ -300,8 +322,7 @@ def test_extract_lineage_for_model(mock_lineage):
     
     extractor = DbtColumnLineageExtractor(
         manifest_path="tests/test_data/1.10/manifest.json",
-        catalog_path="tests/test_data/1.10/catalog.json",
-        dialect="snowflake"  # This test uses hardcoded 1.10 data which is snowflake
+        catalog_path="tests/test_data/1.10/catalog.json"
     )
     
     # Create test inputs
@@ -332,13 +353,9 @@ def test_extract_snapshot_lineage_with_real_data(dbt_valid_test_data_dir):
     if dbt_valid_test_data_dir is None:
         pytest.skip("No valid versioned test data present")
     
-    # Dynamically determine dialect from test data directory
-    dialect = get_dialect_from_test_data_dir(dbt_valid_test_data_dir)
-    
     extractor = DbtColumnLineageExtractor(
         manifest_path=f"{dbt_valid_test_data_dir}/manifest.json",
-        catalog_path=f"{dbt_valid_test_data_dir}/catalog.json",
-        dialect=dialect
+        catalog_path=f"{dbt_valid_test_data_dir}/catalog.json"
     )
     
     # Get a real model from the manifest
@@ -379,13 +396,9 @@ def test_extract_lineage_with_real_data(dbt_valid_test_data_dir):
     if dbt_valid_test_data_dir is None:
         pytest.skip("No valid versioned test data present")
     
-    # Dynamically determine dialect from test data directory
-    dialect = get_dialect_from_test_data_dir(dbt_valid_test_data_dir)
-    
     extractor = DbtColumnLineageExtractor(
         manifest_path=f"{dbt_valid_test_data_dir}/manifest.json",
-        catalog_path=f"{dbt_valid_test_data_dir}/catalog.json",
-        dialect=dialect
+        catalog_path=f"{dbt_valid_test_data_dir}/catalog.json"
     )
     
     # Get a real model from the manifest
@@ -430,13 +443,9 @@ def test_extract_lineage_error_handling(mock_lineage, dbt_valid_test_data_dir):
     if dbt_valid_test_data_dir is None:
         pytest.skip("No valid versioned test data present")
     
-    # Dynamically determine dialect from test data directory
-    dialect = get_dialect_from_test_data_dir(dbt_valid_test_data_dir)
-    
     extractor = DbtColumnLineageExtractor(
         manifest_path=f"{dbt_valid_test_data_dir}/manifest.json",
-        catalog_path=f"{dbt_valid_test_data_dir}/catalog.json",
-        dialect=dialect
+        catalog_path=f"{dbt_valid_test_data_dir}/catalog.json"
     )
     
     # Create test inputs
@@ -462,13 +471,10 @@ def test_full_lineage_map_build(dbt_valid_test_data_dir):
     if dbt_valid_test_data_dir is None:
         pytest.skip("No valid versioned test data present")
     
-    # Dynamically determine dialect from test data directory
-    dialect = get_dialect_from_test_data_dir(dbt_valid_test_data_dir)
     
     tmp_extractor = DbtColumnLineageExtractor(
         manifest_path=f"{dbt_valid_test_data_dir}/manifest.json",
-        catalog_path=f"{dbt_valid_test_data_dir}/catalog.json",
-        dialect=dialect
+        catalog_path=f"{dbt_valid_test_data_dir}/catalog.json"
     )
     some_model = next((
         node_id for node_id, node in tmp_extractor.manifest.get("nodes", {}).items()
@@ -480,8 +486,7 @@ def test_full_lineage_map_build(dbt_valid_test_data_dir):
     extractor = DbtColumnLineageExtractor(
         manifest_path=f"{dbt_valid_test_data_dir}/manifest.json",
         catalog_path=f"{dbt_valid_test_data_dir}/catalog.json",
-        selected_models=selected_models,
-        dialect=dialect
+        selected_models=selected_models
     )
     
     # Build the lineage map
@@ -513,13 +518,9 @@ def test_get_dbt_node_from_sqlglot_table_node(dbt_valid_test_data_dir):
     if dbt_valid_test_data_dir is None:
         pytest.skip("No valid versioned test data present")
     
-    # Dynamically determine dialect from test data directory
-    dialect = get_dialect_from_test_data_dir(dbt_valid_test_data_dir)
-    
     extractor = DbtColumnLineageExtractor(
         manifest_path=f"{dbt_valid_test_data_dir}/manifest.json",
-        catalog_path=f"{dbt_valid_test_data_dir}/catalog.json",
-        dialect=dialect
+        catalog_path=f"{dbt_valid_test_data_dir}/catalog.json"
     )
     
     # Mock a sqlglot node
@@ -573,14 +574,11 @@ def test_get_columns_lineage_from_sqlglot_lineage_map(dbt_valid_test_data_dir):
     if dbt_valid_test_data_dir is None:
         pytest.skip("No valid versioned test data present")
     
-    # Dynamically determine dialect from test data directory
-    dialect = get_dialect_from_test_data_dir(dbt_valid_test_data_dir)
     
     extractor = DbtColumnLineageExtractor(
         manifest_path=f"{dbt_valid_test_data_dir}/manifest.json",
         catalog_path=f"{dbt_valid_test_data_dir}/catalog.json",
-        selected_models=["model.test.child"],
-        dialect=dialect
+        selected_models=["model.test.child"]
     )
     
     # Mock a lineage map
@@ -617,13 +615,10 @@ def test_column_lineage_with_real_data(dbt_valid_test_data_dir):
     if dbt_valid_test_data_dir is None:
         pytest.skip("No valid versioned test data present")
     
-    # Dynamically determine dialect from test data directory
-    dialect = get_dialect_from_test_data_dir(dbt_valid_test_data_dir)
     
     tmp_extractor = DbtColumnLineageExtractor(
         manifest_path=f"{dbt_valid_test_data_dir}/manifest.json",
-        catalog_path=f"{dbt_valid_test_data_dir}/catalog.json",
-        dialect=dialect
+        catalog_path=f"{dbt_valid_test_data_dir}/catalog.json"
     )
     some_model = next((
         node_id for node_id, node in tmp_extractor.manifest.get("nodes", {}).items()
@@ -635,8 +630,7 @@ def test_column_lineage_with_real_data(dbt_valid_test_data_dir):
     extractor = DbtColumnLineageExtractor(
         manifest_path=f"{dbt_valid_test_data_dir}/manifest.json",
         catalog_path=f"{dbt_valid_test_data_dir}/catalog.json",
-        selected_models=selected_models,
-        dialect=dialect
+        selected_models=selected_models
     )
     
     # First build the lineage map
@@ -681,13 +675,9 @@ def test_get_lineage_to_direct_children(dbt_valid_test_data_dir):
     if dbt_valid_test_data_dir is None:
         pytest.skip("No valid versioned test data present")
     
-    # Dynamically determine dialect from test data directory
-    dialect = get_dialect_from_test_data_dir(dbt_valid_test_data_dir)
-    
     extractor = DbtColumnLineageExtractor(
         manifest_path=f"{dbt_valid_test_data_dir}/manifest.json",
-        catalog_path=f"{dbt_valid_test_data_dir}/catalog.json",
-        dialect=dialect
+        catalog_path=f"{dbt_valid_test_data_dir}/catalog.json"
     )
     
     # Get lineage to direct children
@@ -790,6 +780,9 @@ def test_python_model_handling():
     """Test handling of Python models during lineage map building."""
     # Create a mock manifest with a Python model
     manifest = {
+        "metadata": {
+            "adapter_type": "snowflake"
+        },
         "nodes": {
             "model.test.python_model": {
                 "path": "models/python_model.py",
@@ -825,7 +818,6 @@ def test_python_model_handling():
                     manifest_path="dummy_path",
                     catalog_path="dummy_path",
                     selected_models=["model.test.python_model"],
-                    dialect="snowflake"  # Mocked test can use default dialect
                 )
                 
                 # Build the lineage map
@@ -840,6 +832,9 @@ def test_source_identifier_handling():
     """Test that source identifiers are correctly handled in node mapping."""
     # Create a mock manifest with a source that has an identifier
     manifest = {
+        "metadata": {
+            "adapter_type": "snowflake"
+        },
         "nodes": {},
         "sources": {
             "source.project_name.source_name.some_name_table_name": {
@@ -878,7 +873,6 @@ def test_source_identifier_handling():
             extractor = DbtColumnLineageExtractor(
                 manifest_path="dummy_path",
                 catalog_path="dummy_path",
-                dialect="snowflake"  # Mocked test can use default dialect
             )
 
             # Get the node mapping
@@ -896,26 +890,5 @@ def test_source_identifier_handling():
             assert incorrect_key not in node_mapping, f"Found source name {incorrect_key} in mapping when it should use the identifier instead"
 
 
-def test_extractor_with_bigquery_dialect(dbt_valid_test_data_dir):
-    """Test that the extractor works with BigQuery dialect."""
-    if dbt_valid_test_data_dir is None:
-        pytest.skip("No valid versioned test data present")
-    extractor = DbtColumnLineageExtractor(
-        manifest_path=f"{dbt_valid_test_data_dir}/manifest.json",
-        catalog_path=f"{dbt_valid_test_data_dir}/catalog.json",
-        dialect="bigquery"
-    )
-    assert extractor.dialect == "bigquery"
-
-
-def test_extractor_with_postgres_dialect(dbt_valid_test_data_dir):
-    """Test that the extractor works with PostgreSQL dialect."""
-    if dbt_valid_test_data_dir is None:
-        pytest.skip("No valid versioned test data present")
-    extractor = DbtColumnLineageExtractor(
-        manifest_path=f"{dbt_valid_test_data_dir}/manifest.json",
-        catalog_path=f"{dbt_valid_test_data_dir}/catalog.json",
-        dialect="postgres"
-    )
-    assert extractor.dialect == "postgres"
+# Note: Adapter type validation tests are now above, testing auto-detection from manifest
 

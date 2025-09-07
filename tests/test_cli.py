@@ -93,17 +93,16 @@ def test_generate_raises_exception(monkeypatch, test_data_dir, test_output_dir):
     assert "❌ Error: Simulated failure" in result.output
 
 
-def test_generate_with_bigquery_dialect(test_data_dir, test_output_dir):
-    """Test successful report generation with BigQuery dialect"""
+def test_generate_with_bigquery_adapter(test_output_dir):
+    """Test successful report generation with BigQuery adapter type detection"""
     runner = CliRunner()
     result = runner.invoke(
         cli,
         [
             "generate",
-            "--manifest", os.path.join(test_data_dir, "manifest.json"),
-            "--catalog", os.path.join(test_data_dir, "catalog.json"),
-            "--output-dir", test_output_dir,
-            "--dialect", "bigquery"
+            "--manifest", "tests/test_data/bigquery/manifest.json",
+            "--catalog", "tests/test_data/bigquery/catalog.json",
+            "--output-dir", test_output_dir
         ]
     )
 
@@ -112,19 +111,19 @@ def test_generate_with_bigquery_dialect(test_data_dir, test_output_dir):
     assert os.path.exists(os.path.join(test_output_dir, "index.html"))
 
 
-def test_generate_invalid_dialect(test_data_dir, test_output_dir):
-    """Test that invalid dialect options are rejected"""
+def test_generate_with_duckdb_adapter(test_output_dir):
+    """Test successful report generation with DuckDB adapter type detection"""
     runner = CliRunner()
     result = runner.invoke(
         cli,
         [
             "generate",
-            "--manifest", os.path.join(test_data_dir, "manifest.json"),
-            "--catalog", os.path.join(test_data_dir, "catalog.json"),
-            "--output-dir", test_output_dir,
-            "--dialect", "invalid_dialect"
+            "--manifest", "tests/test_data/duckdb/manifest.json",
+            "--catalog", "tests/test_data/duckdb/catalog.json",
+            "--output-dir", test_output_dir
         ]
     )
 
-    assert result.exit_code == 2  # Click error code for invalid choice
-    assert "Invalid value for '--dialect'" in result.output
+    assert result.exit_code == 0, result.output
+    assert os.path.exists(os.path.join(test_output_dir, "colibri-manifest.json"))
+    assert os.path.exists(os.path.join(test_output_dir, "index.html"))

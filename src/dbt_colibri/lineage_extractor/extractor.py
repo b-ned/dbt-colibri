@@ -24,7 +24,7 @@ def extract_column_refs(expr: exp.Expression) -> list[exp.Column]:
     return list(expr.find_all(exp.Column))
 
 class DbtColumnLineageExtractor:
-    def __init__(self, manifest_path, catalog_path, selected_models=[], dialect="snowflake"):
+    def __init__(self, manifest_path, catalog_path, selected_models=[]):
         # Set up logging
         self.logger = logging.getLogger("dbt_column_lineage")
 
@@ -33,7 +33,7 @@ class DbtColumnLineageExtractor:
         self.catalog = json_utils.read_json(catalog_path)
         self.schema_dict = self._generate_schema_dict_from_catalog()
         self.node_mapping = self._get_dict_mapping_full_table_name_to_dbt_node()
-        self.dialect = dialect
+        self.dialect = self._detect_adapter_type()
         # Store references to parent and child maps for easy access
         self.parent_map = self.manifest.get("parent_map", {})
         self.child_map = self.manifest.get("child_map", {})
@@ -50,6 +50,36 @@ class DbtColumnLineageExtractor:
         else:
             # Process selectors to get models
             self.selected_models = self._parse_selectors(selected_models)
+
+    def _detect_adapter_type(self):
+        """
+        Detect the adapter type from the manifest metadata.
+        
+        Returns:
+            str: The detected adapter type
+            
+        Raises:
+            ValueError: If adapter_type is not found or not supported
+        """
+        SUPPORTED_ADAPTERS = {'snowflake', 'bigquery', 'redshift', 'duckdb'}
+        
+        # Get adapter_type from manifest metadata
+        adapter_type = self.manifest.get("metadata", {}).get("adapter_type")
+        
+        if not adapter_type:
+            raise ValueError(
+                "adapter_type not found in manifest metadata. "
+                "Please ensure you're using a valid dbt manifest.json file."
+            )
+        
+        if adapter_type not in SUPPORTED_ADAPTERS:
+            raise ValueError(
+                f"Unsupported adapter type '{adapter_type}'. "
+                f"Supported adapters are: {', '.join(sorted(SUPPORTED_ADAPTERS))}"
+            )
+        
+        self.logger.info(f"Detected adapter type: {adapter_type}")
+        return adapter_type
 
     def _parse_selectors(self, selectors):
         """
