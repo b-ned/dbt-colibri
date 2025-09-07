@@ -110,7 +110,7 @@ Gitlab has similar functionality. Other options are writing the file to a bucket
 
 - **Python**: tested on versions 3.9, 3.11, 3.13
 
-- **Database**: Currently only tested with Snowflake dialect
+- **supported dbt Adapters**: Snowflake, BigQuery, Redshift, duckDB 
 
 ### dbt Compatibility
 
@@ -130,6 +130,10 @@ dbt-colibri leverages:
 ## 🤝 Contributing
 
 We welcome contributions! Raise an issue or request a feature, if you are open to contribute you can let us now in the issue.
+
+- **Issues**: [GitHub Issues](https://github.com/your-org/dbt-colibri/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/your-org/dbt-colibri/discussions)
+
 
 ### Development Setup
 
@@ -159,11 +163,6 @@ This project builds upon excellent open source work:
 - **[dbt-column-lineage-extractor](https://github.com/canva-public/dbt-column-lineage-extractor)** - Original column lineage extraction logic
 - **[SQLGlot](https://github.com/tobymao/sqlglot)** - SQL parsing and transformation
 - **[elementary-data](https://github.com/elementary-data/elementary)** - Inspiration for static HTML report structure
-
-## 📞 Support
-
-- **Issues**: [GitHub Issues](https://github.com/your-org/dbt-colibri/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/your-org/dbt-colibri/discussions)
 
 ---
 
