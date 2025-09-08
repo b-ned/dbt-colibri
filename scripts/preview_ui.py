@@ -4,7 +4,7 @@ from dbt_colibri.report.generator import DbtColibriReportGenerator
 import webbrowser
 
 # List of dbt versions you want to process
-versions = ["1.8", "1.9", "1.10", "bigquery", "redshift", "duckdb", "postgres"]
+versions = ["1.8", "1.9", "1.10", "bigquery", "redshift", "duckdb", "postgres", "databricks"]
 
 for version in versions:
     print(f"Processing version {version}...")
