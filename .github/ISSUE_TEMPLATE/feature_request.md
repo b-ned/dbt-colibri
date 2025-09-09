@@ -3,6 +3,8 @@ name: Feature request
 about: Suggest an idea or improvement for this project
 title: "[Feature Request] "
 labels: enhancement
+assignees: ''
+
 ---
 
 ## 📝 Feature Description
