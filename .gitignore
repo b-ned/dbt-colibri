@@ -155,6 +155,5 @@ cython_debug/
 .DS_Store
 dev_data/
 main.py
-.vscode/launch.json
 output/
 .vscode/settings.json

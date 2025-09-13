@@ -840,9 +840,5 @@ class DBTNodeManifest:
     @property
     def full_table_name(self):
         return self.relation_name
-        if self.dialect == 'snowflake':
-            return f"{self.database}.{self.schema}.{self.name}".lower()
-        else:
-            return f"{self.database}.{self.schema}.{self.name}"
 
 # TODO: add metadata columns to external tables
