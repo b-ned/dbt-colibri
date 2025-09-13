@@ -31,26 +31,8 @@ class DbtColumnLineageExtractor:
         # Read manifest and catalog files
         self.manifest = json_utils.read_json(manifest_path)
         self.catalog = json_utils.read_json(catalog_path)
-        # Normalize manifest keys to lowercase once at load time
-        # self.manifest["nodes"] = {
-        #     node_id.lower(): node for node_id, node in self.manifest.get("nodes", {}).items()
-        # }
-        # self.manifest["sources"] = {
-        #     source_id.lower(): node for source_id, node in self.manifest.get("sources", {}).items()
-        # }
-
-        # # # Normalize catalog
-        # self.catalog["nodes"] = {
-        #     node_id.lower(): node for node_id, node in self.catalog.get("nodes", {}).items()
-        # }
-        # self.catalog["sources"] = {
-        #     source_id.lower(): node for source_id, node in self.catalog.get("sources", {}).items()
-        # }
-
         self.manifest = self._normalize_manifest_keys(self.manifest)
-        self.catalog = self._normalize_manifest_keys(self.catalog)  # only nodes/sources get touched
-
-        
+        self.catalog = self._normalize_manifest_keys(self.catalog)  # only nodes/sources get touched        
         self.schema_dict = self._generate_schema_dict_from_catalog()
         self.dialect = self._detect_adapter_type()
         self.node_mapping = self._get_dict_mapping_full_table_name_to_dbt_node()
@@ -618,10 +600,7 @@ class DbtColumnLineageExtractor:
         column_name = node.name.split(".")[-1].lower()
 
         table_name = f"{node.source.catalog}.{node.source.db}.{node.source.name}".lower()
-        if table_name.lower() == 'dbt_db.raw.raw_customers':
-            print(table_name)
-                    #-> should match relation_name
-        # table_name = table_name.lower()
+        
         if table_name in self.node_mapping:
             dbt_node = self.node_mapping[table_name]
         else:
@@ -668,8 +647,7 @@ class DbtColumnLineageExtractor:
             if model_node_lower not in columns_lineage:
                 # Add any model node from lineage_map that might not be in selected_models
                 columns_lineage[model_node_lower] = {}
-            if model_node == 'model.jaffle_shop.stg_customers':
-                print("stop")
+
             for column, node in columns.items():
                 column = column.lower()
                 if picked_columns and column not in picked_columns:
