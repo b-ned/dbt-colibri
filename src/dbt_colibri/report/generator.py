@@ -44,6 +44,22 @@ class DbtColibriReportGenerator:
             return "staging"
         return "unknown"
     
+    def get_node(self, node_id: str):
+        """Fetch a node from the manifest using a lowercase node_id."""
+        node_id = node_id.lower()
+
+        # search nodes
+        for key, node in self.manifest.get("nodes", {}).items():
+            if node.get("unique_id", "").lower() == node_id:
+                return node
+
+        # search sources
+        for key, node in self.manifest.get("sources", {}).items():
+            if node.get("unique_id", "").lower() == node_id:
+                return node
+
+        raise KeyError(f"Node with id '{node_id}' not found in manifest.")
+    
     def build_manifest_node_data(self, node_id: str) -> dict:
         """Build node metadata from manifest and catalog data."""
         node_data = (
@@ -206,9 +222,11 @@ class DbtColibriReportGenerator:
 
         # Build all nodes (even if disconnected)
         all_ids = {
-            node_id for node_id, data in self.manifest.get("nodes", {}).items()
+            node_id.lower()
+            for node_id, data in self.manifest.get("nodes", {}).items()
             if data.get("resource_type") not in {"test", "macro"}
-        }.union(self.manifest.get("sources", {}).keys())
+        }.union({source_id.lower() for source_id in self.manifest.get("sources", {}).keys()})
+
         for node_id in all_ids:
             ensure_node(node_id)
 

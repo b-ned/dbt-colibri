@@ -1,7 +1,7 @@
 import warnings
 from sqlglot.lineage import maybe_parse, SqlglotError, exp
 import logging
-from ..utils import json_utils
+from ..utils import json_utils, parsing_utils
 from .lineage import lineage, prepare_scope
 import re
 import sqlglot
@@ -31,9 +31,29 @@ class DbtColumnLineageExtractor:
         # Read manifest and catalog files
         self.manifest = json_utils.read_json(manifest_path)
         self.catalog = json_utils.read_json(catalog_path)
+        # Normalize manifest keys to lowercase once at load time
+        # self.manifest["nodes"] = {
+        #     node_id.lower(): node for node_id, node in self.manifest.get("nodes", {}).items()
+        # }
+        # self.manifest["sources"] = {
+        #     source_id.lower(): node for source_id, node in self.manifest.get("sources", {}).items()
+        # }
+
+        # # # Normalize catalog
+        # self.catalog["nodes"] = {
+        #     node_id.lower(): node for node_id, node in self.catalog.get("nodes", {}).items()
+        # }
+        # self.catalog["sources"] = {
+        #     source_id.lower(): node for source_id, node in self.catalog.get("sources", {}).items()
+        # }
+
+        self.manifest = self._normalize_manifest_keys(self.manifest)
+        self.catalog = self._normalize_manifest_keys(self.catalog)  # only nodes/sources get touched
+
+        
         self.schema_dict = self._generate_schema_dict_from_catalog()
-        self.node_mapping = self._get_dict_mapping_full_table_name_to_dbt_node()
         self.dialect = self._detect_adapter_type()
+        self.node_mapping = self._get_dict_mapping_full_table_name_to_dbt_node()
         # Store references to parent and child maps for easy access
         self.parent_map = self.manifest.get("parent_map", {})
         self.child_map = self.manifest.get("child_map", {})
@@ -51,6 +71,23 @@ class DbtColumnLineageExtractor:
             # Process selectors to get models
             self.selected_models = self._parse_selectors(selected_models)
 
+    def _normalize_manifest_keys(self, obj: dict) -> dict:
+        """Normalize keys/values in dbt manifest dict (nodes, sources, parent_map, child_map)."""
+        if "nodes" in obj:
+            obj["nodes"] = {k.lower(): v for k, v in obj["nodes"].items()}
+        if "sources" in obj:
+            obj["sources"] = {k.lower(): v for k, v in obj["sources"].items()}
+        if "parent_map" in obj:
+            obj["parent_map"] = {
+                k.lower(): [val.lower() for val in v]
+                for k, v in obj["parent_map"].items()
+            }
+        if "child_map" in obj:
+            obj["child_map"] = {
+                k.lower(): [val.lower() for val in v]
+                for k, v in obj["child_map"].items()
+            }
+        return obj
     def _detect_adapter_type(self):
         """
         Detect the adapter type from the manifest metadata.
@@ -373,7 +410,7 @@ class DbtColumnLineageExtractor:
 
         def add_to_schema_dict(node):
             dbt_node = DBTNodeCatalog(node)
-            db_name, schema_name, table_name = dbt_node.database, dbt_node.schema, dbt_node.name
+            db_name, schema_name, table_name = dbt_node.database.lower(), dbt_node.schema.lower(), dbt_node.name.lower()
 
             if db_name not in schema_dict:
                 schema_dict[db_name] = {}
@@ -398,14 +435,14 @@ class DbtColumnLineageExtractor:
             # Only include model, source, and seed nodes
             if node.get("resource_type") in ["model", "source", "seed", "snapshot"]:
                 try:
-                    dbt_node = DBTNodeManifest(node)
-                    mapping[dbt_node.full_table_name] = key
+                    dbt_node = DBTNodeManifest(node, self.dialect)
+                    mapping[dbt_node.full_table_name] = key.lower()
                 except Exception as e:
                     warnings.warn(f"Error processing node {key}: {e}")
         for key, node in self.manifest["sources"].items():
             try:
-                dbt_node = DBTNodeManifest(node)
-                mapping[dbt_node.full_table_name] = key
+                dbt_node = DBTNodeManifest(node, self.dialect)
+                mapping[dbt_node.full_table_name] = key.lower()
             except Exception as e:
                 warnings.warn(f"Error processing source {key}: {e}")
         return mapping
@@ -424,10 +461,15 @@ class DbtColumnLineageExtractor:
         parent_nodes = model_info["depends_on"]["nodes"]
         parent_catalog = {"nodes": {}, "sources": {}}
         for parent in parent_nodes:
+            parent = parent.lower()
             if parent in self.catalog["nodes"]:
-                parent_catalog["nodes"][parent] = self.catalog["nodes"][parent]
+                # parent_catalog["nodes"][parent] = self.catalog["nodes"][parent]
+                # Also add lowercase key for consistency
+                parent_catalog["nodes"][parent.lower()] = self.catalog["nodes"][parent]
             elif parent in self.catalog["sources"]:
-                parent_catalog["sources"][parent] = self.catalog["sources"][parent]
+                # parent_catalog["sources"][parent] = self.catalog["sources"][parent]
+                # Also add lowercase key for consistency
+                parent_catalog["sources"][parent.lower()] = self.catalog["sources"][parent]
             else:
                 warnings.warn(f"Parent model {parent} not found in catalog")
         return parent_catalog
@@ -548,7 +590,7 @@ class DbtColumnLineageExtractor:
                 parent_catalog = self._get_parent_nodes_catalog(model_info)
                 columns = self._get_list_of_columns_for_a_dbt_node(model_node)
                 schema = self._generate_schema_dict_from_catalog(parent_catalog)
-                model_sql = model_info["compiled_code"]
+                model_sql = model_info["compiled_code"].lower()
 
                 model_lineage = self._extract_lineage_for_model(
                     model_sql=model_sql,
@@ -574,11 +616,14 @@ class DbtColumnLineageExtractor:
         if node.source.key != "table":
             raise ValueError(f"Node source is not a table, but {node.source.key}")
         column_name = node.name.split(".")[-1].lower()
-        table_name = f"{node.source.catalog}.{node.source.db}.{node.source.name}"
-        table_name = table_name.lower()
 
+        table_name = f"{node.source.catalog}.{node.source.db}.{node.source.name}".lower()
+        if table_name.lower() == 'dbt_db.raw.raw_customers':
+            print(table_name)
+                    #-> should match relation_name
+        # table_name = table_name.lower()
         if table_name in self.node_mapping:
-            dbt_node = self.node_mapping[table_name].lower()
+            dbt_node = self.node_mapping[table_name]
         else:
             # Check if the table is hardcoded in raw code.
             raw_code = self.manifest["nodes"][model_node]["raw_code"].lower()
@@ -623,7 +668,8 @@ class DbtColumnLineageExtractor:
             if model_node_lower not in columns_lineage:
                 # Add any model node from lineage_map that might not be in selected_models
                 columns_lineage[model_node_lower] = {}
-
+            if model_node == 'model.jaffle_shop.stg_customers':
+                print("stop")
             for column, node in columns.items():
                 column = column.lower()
                 if picked_columns and column not in picked_columns:
@@ -786,12 +832,14 @@ class DBTNodeCatalog:
             raise ValueError(f"Node data missing metadata field: {node_data}")
 
         self.database = node_data["metadata"]["database"]
+        self.unique_id = node_data["unique_id"].lower()
         self.schema = node_data["metadata"]["schema"]
         self.name = node_data["metadata"]["name"]
         self.columns = node_data["columns"]
 
     @property
     def full_table_name(self):
+        return self.unique_id
         return f"{self.database}.{self.schema}.{self.name}".lower()
 
     def get_column_types(self):
@@ -799,9 +847,11 @@ class DBTNodeCatalog:
 
 
 class DBTNodeManifest:
-    def __init__(self, node_data):
+    def __init__(self, node_data, dialect):
         self.database = node_data["database"]
         self.schema = node_data["schema"]
+        self.relation_name = parsing_utils.normalize_table_relation_name(node_data["relation_name"])
+        self.dialect = dialect
         # Check alias first
         if node_data.get("alias"):
             self.name = node_data.get("alias")
@@ -811,7 +861,10 @@ class DBTNodeManifest:
 
     @property
     def full_table_name(self):
-        return f"{self.database}.{self.schema}.{self.name}".lower()
-
+        return self.relation_name
+        if self.dialect == 'snowflake':
+            return f"{self.database}.{self.schema}.{self.name}".lower()
+        else:
+            return f"{self.database}.{self.schema}.{self.name}"
 
 # TODO: add metadata columns to external tables
