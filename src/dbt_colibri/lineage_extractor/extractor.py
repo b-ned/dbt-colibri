@@ -87,8 +87,10 @@ class DbtColumnLineageExtractor:
         for node_id, node in {**self.manifest["nodes"], **self.manifest["sources"]}.items():
             if node.get("resource_type") not in ["model", "source", "seed", "snapshot"]:
                 continue
-
-            relation_name = parsing_utils.normalize_table_relation_name(node["relation_name"])
+            if node['config'].get('materialized') == 'ephemeral':
+                relation_name = node['database'] + '.' + node['schema'] + '.' + node.get('alias', node.get('name'))
+            else:
+                relation_name = parsing_utils.normalize_table_relation_name(node["relation_name"])
 
             # Start with manifest node info
             merged[relation_name] = {

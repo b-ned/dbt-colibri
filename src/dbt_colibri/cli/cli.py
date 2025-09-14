@@ -64,30 +64,30 @@ def generate_report(output_dir, manifest, catalog, debug):
 
         # Set up logging based on flag
         log_level = logging.DEBUG if debug else logging.INFO
-        log.setup_logging(level=log_level)
+        logger = log.setup_logging(level=log_level)
 
         if not os.path.exists(manifest):
-            click.echo(f"❌ Manifest file not found at {manifest}")
+            logger.error(f"❌ Manifest file not found at {manifest}")
             sys.exit(1)
         if not os.path.exists(catalog):
-            click.echo(f"❌ Catalog file not found at {catalog}")
+            logger.error(f"❌ Catalog file not found at {catalog}")
             sys.exit(1)
 
-        click.echo("🔍 Loading dbt manifest and catalog...")
+        logger.info("Loading dbt manifest and catalog...")
         extractor = DbtColumnLineageExtractor(manifest, catalog)
 
-        click.echo("📊 Extracting lineage data...")
+        logger.info("Extracting lineage data...")
         report_generator = DbtColibriReportGenerator(extractor)
 
-        click.echo("🚀 Generating report...")
+        logger.info("Generating report...")
         report_generator.generate_report(output_dir=output_dir)
-
+        click.echo("\n")
         click.echo("✅ Report completed!")
-        click.echo(f"   📁 JSON: {output_dir}/colibri-manifest.json")
-        click.echo(f"   🌐 HTML: {output_dir}/index.html")
+        click.echo(f"  📁 JSON: {output_dir}/colibri-manifest.json")
+        click.echo(f"  🌐 HTML: {output_dir}/index.html")
         sys.exit(0)
     except Exception as e:
-        click.echo(f"❌ Error: {str(e)}")
+        logger.error(f"❌ Error: {str(e)}")
         sys.exit(1)
 
 
