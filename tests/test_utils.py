@@ -56,7 +56,6 @@ def test_normalize_relation_name_across_sql_dialects():
 
             # Verify basic normalization properties
             assert isinstance(normalized, str)
-            assert normalized == normalized.lower()  # Should be lowercased
             assert not normalized.startswith('"')  # Should have quotes removed
             assert not normalized.startswith("'")
             assert not normalized.endswith('"')

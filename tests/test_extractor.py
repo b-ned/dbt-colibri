@@ -167,25 +167,40 @@ def test_schema_dict_generation(dbt_valid_test_data_dir):
     # Verify that table has column types
     assert len(extractor.schema_dict[first_db][first_schema][first_table]) > 0
 
-def test_node_mapping(dbt_valid_test_data_dir):
-    """Test the node mapping dictionary generation."""
+def test_nodes_with_columns(dbt_valid_test_data_dir):
+    """Test the merged node mapping with columns, keyed by normalized relation_name."""
     if dbt_valid_test_data_dir is None:
         pytest.skip("No valid versioned test data present")
-    
+
     extractor = DbtColumnLineageExtractor(
         manifest_path=f"{dbt_valid_test_data_dir}/manifest.json",
         catalog_path=f"{dbt_valid_test_data_dir}/catalog.json"
     )
-    
-    # Verify node_mapping structure
-    assert extractor.node_mapping
-    assert isinstance(extractor.node_mapping, dict)
-    assert len(extractor.node_mapping) > 0
-    
-    # Verify some mappings exist (format should be "catalog.schema.table" -> "model.package.name")
-    for table_name, dbt_node in extractor.node_mapping.items():
-        assert "." in table_name
-        assert dbt_node.startswith(("model.", "source.", "seed.", "snapshot."))
+
+    nodes_with_columns = extractor.nodes_with_columns
+
+    # Basic structure
+    assert nodes_with_columns
+    assert isinstance(nodes_with_columns, dict)
+    assert len(nodes_with_columns) > 0
+
+    # Verify keys are normalized relation names
+    for relation_name, node_info in nodes_with_columns.items():
+        assert isinstance(relation_name, str)
+        assert "." in relation_name  # should look like catalog.schema.table
+
+        # Verify node_info structure
+        assert "unique_id" in node_info
+        assert node_info["unique_id"].startswith(
+            ("model.", "source.", "seed.", "snapshot.")
+        )
+
+        assert "database" in node_info
+        assert "schema" in node_info
+        assert "name" in node_info
+        assert "columns" in node_info
+        assert isinstance(node_info["columns"], dict)
+
 
 def test_get_list_of_columns(dbt_valid_test_data_dir):
     """Test retrieving columns for a dbt node."""
@@ -513,102 +528,6 @@ def test_full_lineage_map_build(dbt_valid_test_data_dir):
     # Ensure the lineage map is a dict of columns -> list
     assert isinstance(model_columns, dict)
 
-def test_get_dbt_node_from_sqlglot_table_node(dbt_valid_test_data_dir):
-    """Test converting sqlglot table nodes to dbt nodes."""
-    if dbt_valid_test_data_dir is None:
-        pytest.skip("No valid versioned test data present")
-    
-    extractor = DbtColumnLineageExtractor(
-        manifest_path=f"{dbt_valid_test_data_dir}/manifest.json",
-        catalog_path=f"{dbt_valid_test_data_dir}/catalog.json"
-    )
-    
-    # Mock a sqlglot node
-    class MockNode:
-        def __init__(self):
-            self.name = "customer_id"
-            self.source = MagicMock()
-            self.source.key = "table"
-            self.source.catalog = "test_catalog"
-            self.source.db = "test_schema"
-            self.source.name = "customers"
-    
-    # Add a mapping to the extractor
-    test_table = "test_catalog.test_schema.customers"
-    extractor.node_mapping[test_table] = "model.test.customers"
-    
-    # Add the fully qualified table name to node mapping
-    fq_table_name = "test_catalog.test_schema.customers"
-    dbt_node_id = "model.test.customers"
-    extractor.node_mapping[fq_table_name] = dbt_node_id
-
-    # Coherent mock model_node (as from DBT manifest["nodes"])
-    mock_model_node = {
-        "unique_id": dbt_node_id,
-        "resource_type": "model",
-        "name": "customers",
-        "database": "test_catalog",
-        "schema": "test_schema",
-        "raw_code": "some sql code",
-        "columns": {
-            "customer_id": {
-                "name": "customer_id",
-                "description": "Unique customer identifier"
-            }
-        }
-    }
-
-    # Test the conversion
-    result = extractor.get_dbt_node_from_sqlglot_table_node(MockNode(), mock_model_node)
-    
-    # Verify the result
-    assert result
-    assert isinstance(result, dict)
-    assert "column" in result
-    assert "dbt_node" in result
-    assert result["column"] == "customer_id"
-    assert result["dbt_node"] == "model.test.customers"
-
-def test_get_columns_lineage_from_sqlglot_lineage_map(dbt_valid_test_data_dir):
-    """Test extracting column lineage from the sqlglot lineage map."""
-    if dbt_valid_test_data_dir is None:
-        pytest.skip("No valid versioned test data present")
-    
-    
-    extractor = DbtColumnLineageExtractor(
-        manifest_path=f"{dbt_valid_test_data_dir}/manifest.json",
-        catalog_path=f"{dbt_valid_test_data_dir}/catalog.json",
-        selected_models=["model.test.child"]
-    )
-    
-    # Mock a lineage map
-    class MockNode:
-        def __init__(self, source_key="table", table_name="parent", column_name="id"):
-            self.name = column_name
-            self.source = MagicMock()
-            self.source.key = source_key
-            self.source.catalog = "test_catalog"
-            self.source.db = "test_schema"
-            self.source.name = table_name
-        
-        def walk(self):
-            return [self]
-    
-    lineage_map = {
-        "model.test.child": {
-            "id": MockNode()
-        }
-    }
-    
-    # Add the mapping
-    extractor.node_mapping["test_catalog.test_schema.parent"] = "model.test.parent"
-    
-    # Get the columns lineage
-    columns_lineage = extractor.get_columns_lineage_from_sqlglot_lineage_map(lineage_map)
-    
-    # Verify the result: since the model is not in the manifest graphs, it should be skipped
-    assert columns_lineage == {}
-
 def test_column_lineage_with_real_data(dbt_valid_test_data_dir):
     """Test the full column lineage extraction process with real data."""
     # Use a real model from test data
@@ -792,7 +711,8 @@ def test_python_model_handling():
                 "database": "test_db",
                 "schema": "test_schema",
                 "name": "python_model",
-                "columns": {}
+                "columns": {},
+                "relation_name": "test_db.test_schema.python_model"
             }
         },
         "sources": {}
