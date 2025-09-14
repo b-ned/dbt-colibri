@@ -351,7 +351,8 @@ def test_extract_lineage_for_model(mock_lineage):
         model_sql=model_sql,
         schema=schema,
         model_node=model_node,
-        selected_columns=selected_columns
+        selected_columns=selected_columns,
+        resource_type="model"
     )
     
     # Verify the result
@@ -395,7 +396,8 @@ def test_extract_snapshot_lineage_with_real_data(dbt_valid_test_data_dir):
         model_sql=model_sql,
         schema=schema,
         model_node=model_node,
-        selected_columns=columns
+        selected_columns=columns,
+        resource_type="snapshot"
     )
     
     # Verify the result
@@ -438,7 +440,8 @@ def test_extract_lineage_with_real_data(dbt_valid_test_data_dir):
         model_sql=model_sql,
         schema=schema,
         model_node=model_node,
-        selected_columns=columns
+        selected_columns=columns,
+        resource_type="model"
     )
     
     # Verify the result
@@ -474,7 +477,8 @@ def test_extract_lineage_error_handling(mock_lineage, dbt_valid_test_data_dir):
         model_sql=model_sql,
         schema=schema,
         model_node=model_node,
-        selected_columns=selected_columns
+        selected_columns=selected_columns,
+        resource_type="model"
     )
     
     # Check that we got an empty result for the column
@@ -712,7 +716,8 @@ def test_python_model_handling():
                 "schema": "test_schema",
                 "name": "python_model",
                 "columns": {},
-                "relation_name": "test_db.test_schema.python_model"
+                "relation_name": "test_db.test_schema.python_model",
+                "config": { "materialized": "table" }
             }
         },
         "sources": {}

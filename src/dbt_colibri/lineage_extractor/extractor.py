@@ -186,7 +186,7 @@ class DbtColumnLineageExtractor:
             name = re.sub(r"::\s*\w+$", "", name)
             if name.startswith("$"):
                 name = name[1:]
-            return name.lower()
+            return name
 
 
         # Get columns if none provided
@@ -250,7 +250,7 @@ class DbtColumnLineageExtractor:
                                 )
                         lineage_map[column_name] = lineage_nodes
                     else:
-                        self.logger.warning(f"No expression found for alias '{column_name}'")
+                        self.logger.warning(f"No expression found for alias '{model_node}' '{column_name}'")
                         lineage_map[column_name] = []
 
 
