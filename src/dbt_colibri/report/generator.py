@@ -206,10 +206,10 @@ class DbtColibriReportGenerator:
 
         # Build all nodes (even if disconnected)
         all_ids = {
-            node_id.lower()
+            node_id
             for node_id, data in self.manifest.get("nodes", {}).items()
             if data.get("resource_type") not in {"test", "macro"}
-        }.union({source_id.lower() for source_id in self.manifest.get("sources", {}).keys()})
+        }.union({source_id for source_id in self.manifest.get("sources", {}).keys()})
 
         for node_id in all_ids:
             ensure_node(node_id)
