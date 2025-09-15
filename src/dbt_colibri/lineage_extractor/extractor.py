@@ -179,9 +179,11 @@ class DbtColumnLineageExtractor:
     def _extract_lineage_for_model(self, model_sql, schema, model_node, resource_type, selected_columns=[]):
         lineage_map = {}
         parsed_model_sql = maybe_parse(model_sql, dialect=self.dialect)
+        # sqlglot does not unfold * to schema when the schema has quotes, or upper (for BigQuery)
         if self.dialect == "postgres":
             parsed_model_sql = parsing_utils.remove_quotes(parsed_model_sql)
-        
+        if self.dialect == "bigquery":
+            parsed_model_sql = parsing_utils.remove_upper(parsed_model_sql)
         qualified_expr, scope = prepare_scope(parsed_model_sql, schema=schema, dialect=self.dialect)
         def normalize_column_name(name: str) -> str:
             name = name.strip('"').strip("'")
@@ -541,7 +543,6 @@ class DBTNodeCatalog:
     @property
     def full_table_name(self):
         return self.unique_id
-        return f"{self.database}.{self.schema}.{self.name}".lower()
 
     def get_column_types(self):
         return {col_name: col_info["type"] for col_name, col_info in self.columns.items()}

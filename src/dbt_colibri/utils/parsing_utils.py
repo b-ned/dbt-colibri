@@ -18,3 +18,14 @@ def remove_quotes(expression):
         return node
 
     return expression.transform(transform_identifier)
+
+def remove_upper(expression):
+    """Version 2: More aggressive approach"""
+    def transform_identifier(node):
+        if isinstance(node, exp.Identifier) and node.quoted:
+            unquoted = node.this.lower()
+            # print(f"    Converting identifier: {node.this!r} (quoted={node.quoted}) -> {unquoted}")
+            return exp.Identifier(this=unquoted, quoted=True)
+        return node
+
+    return expression.transform(transform_identifier)
