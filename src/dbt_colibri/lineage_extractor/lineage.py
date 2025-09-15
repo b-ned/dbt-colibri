@@ -95,9 +95,6 @@ def lineage(
 
     # expression = maybe_parse(sql, dialect=dialect)
     expression = sql # Already parsed upstream
-    # Normalize the requested column name according to dialect rules (e.g., Snowflake -> UPPER).
-    # Note: the parsed SQL may have been lowercased upstream (especially quoted identifiers),
-    # which can cause case-mismatch between the requested column and select aliases.
     column = normalize_identifiers.normalize_identifiers(column, dialect=dialect).name
 
     if sources:

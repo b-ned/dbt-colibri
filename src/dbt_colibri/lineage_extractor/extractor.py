@@ -317,12 +317,7 @@ class DbtColumnLineageExtractor:
             raise ValueError(f"Node source is not a table, but {node.source.key}")
         column_name = node.name.split(".")[-1].lower()
         table_name = f"{node.source.catalog}.{node.source.db}.{node.source.name}"
-        # Table Name here is lower case, while in the SQL it's upper case!
-        # DuckDB returns lower, while model relation name = jaffle_shop.raw.RAW_CUSTOMERS
-        # Snowflake SQLGlot returns TEST_DB.RAW.RAW_CUSTOMERS, while model relation name = TEST_DB.raw.RAW_CUSTOMERS
-        # If the in the SQL "" or ticks are used for example: select * from "jaffle_shop".raw."Raw_Customers" the table name is probably jaffle_shop.RAW.Raw_Customers 
-        # if table_name in self.nodes_with_columns:
-        #     dbt_node = self.nodes_with_columns[table_name]["unique_id"]
+        
         for key, data in self.nodes_with_columns.items():
             if key.lower() == table_name.lower():
                 dbt_node = data["unique_id"]
