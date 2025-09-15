@@ -4,6 +4,7 @@
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
+
         {
             "name": "Python Debugger: Current File",
             "type": "debugpy",
@@ -25,7 +26,9 @@
             "module": "pytest",
             "args": [
                 "-q",
-                "tests/test_extractor.py::test_source_identifier_handling" // run only this test, adjust as needed
+                "tests/test_case_sensitivity.py", 
+                "-vv", 
+                "-s" // run only this test, adjust as needed
             ],
             "justMyCode": true,
             "console": "integratedTerminal"

@@ -4,7 +4,7 @@ import logging
 from ..utils import json_utils, parsing_utils
 from .lineage import lineage, prepare_scope
 import re
-import sqlglot
+
 
 
 def get_select_expressions(expr: exp.Expression) -> list[exp.Expression]:
@@ -179,6 +179,9 @@ class DbtColumnLineageExtractor:
     def _extract_lineage_for_model(self, model_sql, schema, model_node, resource_type, selected_columns=[]):
         lineage_map = {}
         parsed_model_sql = maybe_parse(model_sql, dialect=self.dialect)
+        if self.dialect == "postgres":
+            parsed_model_sql = parsing_utils.remove_quotes(parsed_model_sql)
+        
         qualified_expr, scope = prepare_scope(parsed_model_sql, schema=schema, dialect=self.dialect)
         def normalize_column_name(name: str) -> str:
             name = name.strip('"').strip("'")
@@ -187,20 +190,6 @@ class DbtColumnLineageExtractor:
             if name.startswith("$"):
                 name = name[1:]
             return name
-
-
-        # Get columns if none provided
-        if not selected_columns:
-            try:
-                sql = sqlglot.parse_one(model_sql, dialect=self.dialect)
-                selected_columns = [
-                    column.alias_or_name.lower()
-                    for column in sql.select.expressions.expressions
-                    if isinstance(column, (exp.Column, exp.Alias))
-                ]
-            except Exception as e:
-                warnings.warn(f"Error parsing SQL for model {model_node}: {str(e)}")
-                return {}
 
         for column_name in selected_columns:
             normalized_column = normalize_column_name(column_name)
