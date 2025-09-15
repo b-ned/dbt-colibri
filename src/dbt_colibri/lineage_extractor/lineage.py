@@ -117,9 +117,16 @@ def lineage(
     if not scope:
         raise SqlglotError("Cannot build lineage, sql must be SELECT")
 
-    select_names = {select.alias_or_name for select in scope.expression.selects}
-    if column not in select_names:
-        raise SqlglotError(f"Cannot find column '{column}' in query.")
+    select_names_original = {select.alias_or_name for select in scope.expression.selects}
+    select_names_lower = {name.lower(): name for name in select_names_original}
+    # If column is not in the exact original names, try case-insensitive resolution
+    if column not in select_names_original:
+        column_lower = column.lower()
+        if column_lower in select_names_lower:
+            # Map back to the original casing
+            column = select_names_lower[column_lower]
+        else:
+            raise SqlglotError(f"Cannot find column '{column}' in query.")
 
     return to_node(column, scope, dialect, trim_selects=trim_selects)
 

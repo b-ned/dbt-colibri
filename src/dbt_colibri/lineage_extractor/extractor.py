@@ -1,10 +1,10 @@
 import warnings
 from sqlglot.lineage import maybe_parse, SqlglotError, exp
 import logging
-from ..utils import json_utils
+from ..utils import json_utils, parsing_utils
 from .lineage import lineage, prepare_scope
 import re
-import sqlglot
+
 
 
 def get_select_expressions(expr: exp.Expression) -> list[exp.Expression]:
@@ -30,26 +30,22 @@ class DbtColumnLineageExtractor:
 
         # Read manifest and catalog files
         self.manifest = json_utils.read_json(manifest_path)
-        self.catalog = json_utils.read_json(catalog_path)
+        self.catalog = json_utils.read_json(catalog_path)      
         self.schema_dict = self._generate_schema_dict_from_catalog()
-        self.node_mapping = self._get_dict_mapping_full_table_name_to_dbt_node()
         self.dialect = self._detect_adapter_type()
+        # self.node_mapping = self._get_dict_mapping_full_table_name_to_dbt_node()
+        self.nodes_with_columns = self.build_nodes_with_columns()
         # Store references to parent and child maps for easy access
         self.parent_map = self.manifest.get("parent_map", {})
         self.child_map = self.manifest.get("child_map", {})
         # Process selected models
-        self.selected_models = []
 
-        if not selected_models:
-            # If no models specified, use all models in the manifest
-            self.selected_models = [
-                node
-                for node in self.manifest["nodes"].keys()
-                if self.manifest["nodes"][node].get("resource_type") in ("model", "snapshot")
-            ]
-        else:
-            # Process selectors to get models
-            self.selected_models = self._parse_selectors(selected_models)
+        self.selected_models = [
+            node
+            for node in self.manifest["nodes"].keys()
+            if self.manifest["nodes"][node].get("resource_type") in ("model", "snapshot")
+        ]
+
 
     def _detect_adapter_type(self):
         """
@@ -81,291 +77,39 @@ class DbtColumnLineageExtractor:
         self.logger.info(f"Detected adapter type: {adapter_type}")
         return adapter_type
 
-    def _parse_selectors(self, selectors):
+    def build_nodes_with_columns(self):
         """
-        Parse dbt-style selectors to expand the list of selected models.
-
-        This implements a subset of dbt's node selection syntax, allowing you to select models
-        using the same patterns you're familiar with from dbt commands.
-
-        Supported selector types:
-        - Simple names: "model_name" or "model.package.model_name"
-        - Source references: "source.schema.name"
-
-        Graph operators:
-        - Ancestors: "+model_name" (include model and all its upstream/parent models)
-        - Descendants: "model_name+" (include model and all its downstream/child models)
-        - Both: "+model_name+" (include model, all its ancestors and all its descendants)
-
-        Set operators:
-        - Union (OR): "model1 model2" (models matching either selector)
-        - Intersection (AND): "model1,model2" (models matching both selectors)
-
-        Resource selectors:
-        - Tags: "tag:my_tag" (models with specific tag)
-        - Path: "path:models/finance" (models in specific path)
-        - Package: "package:my_package" (models in specific package)
-
-        These selectors can be combined in complex ways, such as:
-        - "tag:daily,+orders" (models tagged as 'daily' AND are also ancestors of 'orders')
-        - "customers+ tag:finance" (descendants of 'customers' OR models with 'finance' tag)
-
-        Returns:
-            list: Expanded list of model names after applying selector logic
+        Merge manifest nodes with catalog columns, keyed by normalized relation_name.
         """
-        if not selectors:
-            return []
+        merged = {}
 
-        # If selectors is already a list of model names without any special syntax, return as is
-        if all(
-            selector in self.manifest["nodes"] or selector in self.manifest.get("sources", {})
-            for selector in selectors
-        ):
-            return selectors
-
-        # Handle list of selector expressions
-        expanded_models = set()
-
-        for selector_expr in selectors:
-            # Check for intersection (comma-separated parts)
-            if "," in selector_expr:
-                parts = selector_expr.split(",")
-                intersection_sets = []
-
-                for part in parts:
-                    # Recursively parse each part
-                    part_models = self._parse_selectors([part])
-                    intersection_sets.append(set(part_models))
-
-                # Intersect all parts
-                if intersection_sets:
-                    result = intersection_sets[0]
-                    for s in intersection_sets[1:]:
-                        result = result.intersection(s)
-                    expanded_models.update(result)
-
-            # Handle union (space-separated parts)
-            elif " " in selector_expr:
-                parts = selector_expr.split()
-                for part in parts:
-                    # Recursively parse each part
-                    part_models = self._parse_selectors([part])
-                    expanded_models.update(part_models)
-
-            # Handle tag selector: tag:my_tag
-            elif selector_expr.startswith("tag:"):
-                tag = selector_expr[4:]
-                matching_models = self._get_models_by_tag(tag)
-                expanded_models.update(matching_models)
-
-            # Handle path selector: path:models/finance
-            elif selector_expr.startswith("path:"):
-                path = selector_expr[5:]
-                matching_models = self._get_models_by_path(path)
-                expanded_models.update(matching_models)
-
-            # Handle package selector: package:my_package
-            elif selector_expr.startswith("package:"):
-                package = selector_expr[8:]
-                matching_models = self._get_models_by_package(package)
-                expanded_models.update(matching_models)
-
-            # Handle both ancestors and descendants: +model_name+
-            elif selector_expr.startswith("+") and selector_expr.endswith("+"):
-                model_name = selector_expr[1:-1]
-                if model_name in self.manifest["nodes"] or model_name in self.manifest.get(
-                    "sources", {}
-                ):
-                    expanded_models.add(model_name)
-                    expanded_models.update(self._get_all_ancestors(model_name))
-                    expanded_models.update(self._get_all_descendants(model_name))
-                else:
-                    # Try to resolve without prefix/suffix
-                    matches = self._resolve_node_by_name(model_name)
-                    for match in matches:
-                        expanded_models.add(match)
-                        expanded_models.update(self._get_all_ancestors(match))
-                        expanded_models.update(self._get_all_descendants(match))
-
-            # Handle ancestors (upstream/parents): +model_name
-            elif selector_expr.startswith("+"):
-                model_name = selector_expr[1:]
-                if model_name in self.manifest["nodes"] or model_name in self.manifest.get(
-                    "sources", {}
-                ):
-                    expanded_models.add(model_name)
-                    expanded_models.update(self._get_all_ancestors(model_name))
-                else:
-                    # Try to resolve without prefix
-                    matches = self._resolve_node_by_name(model_name)
-                    for match in matches:
-                        expanded_models.add(match)
-                        expanded_models.update(self._get_all_ancestors(match))
-
-            # Handle descendants (downstream/children): model_name+
-            elif selector_expr.endswith("+"):
-                model_name = selector_expr[:-1]
-                if model_name in self.manifest["nodes"] or model_name in self.manifest.get(
-                    "sources", {}
-                ):
-                    expanded_models.add(model_name)
-                    expanded_models.update(self._get_all_descendants(model_name))
-                else:
-                    # Try to resolve without prefix
-                    matches = self._resolve_node_by_name(model_name)
-                    for match in matches:
-                        expanded_models.add(match)
-                        expanded_models.update(self._get_all_descendants(match))
-
-            # Handle direct node reference
-            elif selector_expr in self.manifest["nodes"] or selector_expr in self.manifest.get(
-                "sources", {}
-            ):
-                expanded_models.add(selector_expr)
-
-            # Handle source reference
-            elif selector_expr.startswith("source."):
-                if selector_expr in self.manifest.get("sources", {}):
-                    expanded_models.add(selector_expr)
-
-            # Handle node name without resource type prefix
+        # Go over models/sources/seeds/snapshots
+        for node_id, node in {**self.manifest["nodes"], **self.manifest["sources"]}.items():
+            if node.get("resource_type") not in ["model", "source", "seed", "snapshot"]:
+                continue
+            if node['config'].get('materialized') == 'ephemeral':
+                relation_name = node['database'] + '.' + node['schema'] + '.' + node.get('alias', node.get('name'))
             else:
-                # Try to find the node by name
-                matching_nodes = self._resolve_node_by_name(selector_expr)
-                expanded_models.update(matching_nodes)
+                relation_name = parsing_utils.normalize_table_relation_name(node["relation_name"])
 
-            # exclude sources after expansion
-            expanded_models = {x for x in expanded_models if not x.startswith("source.")}
+            # Start with manifest node info
+            merged[relation_name] = {
+                "unique_id": node_id,
+                "database": node.get("database"),
+                "schema": node.get("schema"),
+                "name": node.get("alias") or node.get("identifier") or node.get("name"),
+                "resource_type": node.get("resource_type"),
+                "columns": {},
+            }
 
-        return list(expanded_models)
+            # Add richer column info from catalog if available
+            if node_id in self.catalog.get("nodes", {}):
+                merged[relation_name]["columns"] = self.catalog["nodes"][node_id]["columns"]
+            elif node_id in self.catalog.get("sources", {}):
+                merged[relation_name]["columns"] = self.catalog["sources"][node_id]["columns"]
 
-    def _resolve_node_by_name(self, node_name):
-        """Find nodes matching a name without full node path prefixes"""
-        # First look for models
-        matching_nodes = [
-            node_id
-            for node_id in self.manifest["nodes"]
-            if self.manifest["nodes"][node_id]["resource_type"] == "model"
-            and self.manifest["nodes"][node_id]["name"] == node_name
-        ]
-
-        # Then look for sources
-        if "sources" in self.manifest:
-            for source_id, source_data in self.manifest["sources"].items():
-                if source_data.get("name") == node_name:
-                    matching_nodes.append(source_id)
-
-        return matching_nodes
-
-    def _get_models_by_tag(self, tag):
-        """Get all models with a specific tag"""
-        matching_models = []
-
-        # Check nodes (models, etc.)
-        for node_name, node_info in self.manifest["nodes"].items():
-            if node_info.get("resource_type") == "model" and tag in node_info.get("tags", []):
-                matching_models.append(node_name)
-
-        # Also check sources
-        if "sources" in self.manifest:
-            for source_name, source_info in self.manifest["sources"].items():
-                if tag in source_info.get("tags", []):
-                    matching_models.append(source_name)
-
-        return matching_models
-
-    def _get_models_by_path(self, path):
-        """Get all models in a specific path"""
-        matching_models = []
-
-        # Check nodes (models, etc.)
-        for node_name, node_info in self.manifest["nodes"].items():
-            if node_info.get("resource_type") == "model" and path in node_info.get("path", ""):
-                matching_models.append(node_name)
-
-        # Also check sources
-        if "sources" in self.manifest:
-            for source_name, source_info in self.manifest["sources"].items():
-                if path in source_info.get("path", ""):
-                    matching_models.append(source_name)
-
-        return matching_models
-
-    def _get_models_by_package(self, package):
-        """Get all models in a specific package"""
-        matching_models = []
-
-        # Check nodes (models, etc.)
-        for node_name, node_info in self.manifest["nodes"].items():
-            if node_info.get("resource_type") == "model" and package == node_info.get(
-                "package_name", ""
-            ):
-                matching_models.append(node_name)
-
-        # Also check sources
-        if "sources" in self.manifest:
-            for source_name, source_info in self.manifest["sources"].items():
-                if package == source_info.get("package_name", ""):
-                    matching_models.append(source_name)
-
-        return matching_models
-
-    def _get_all_ancestors(self, model_name):
-        """Get all ancestor models (parents) using manifest's parent_map"""
-        ancestors = set()
-        visited = set()
-
-        def collect_ancestors(node):
-            if node in visited:
-                return
-
-            visited.add(node)
-
-            # Get parents from parent_map
-            parents = self.parent_map.get(node, [])
-            for parent in parents:
-                # Include both models and sources
-                is_model = (
-                    parent in self.manifest.get("nodes", {})
-                    and self.manifest["nodes"][parent].get("resource_type") == "model"
-                )
-                is_source = parent in self.manifest.get("sources", {})
-
-                if is_model or is_source:
-                    ancestors.add(parent)
-                    collect_ancestors(parent)
-
-        collect_ancestors(model_name)
-        return ancestors
-
-    def _get_all_descendants(self, model_name):
-        """Get all descendant models (children) using manifest's child_map"""
-        descendants = set()
-        visited = set()
-
-        def collect_descendants(node):
-            if node in visited:
-                return
-
-            visited.add(node)
-
-            # Get children from child_map
-            children = self.child_map.get(node, [])
-            for child in children:
-                # Include both models and sources
-                is_model = (
-                    child in self.manifest.get("nodes", {})
-                    and self.manifest["nodes"][child].get("resource_type") == "model"
-                )
-                is_source = child in self.manifest.get("sources", {})
-
-                if is_model or is_source:
-                    descendants.add(child)
-                    collect_descendants(child)
-
-        collect_descendants(model_name)
-        return descendants
-
+        return merged
+    
     def _generate_schema_dict_from_catalog(self, catalog=None):
         if not catalog:
             catalog = self.catalog
@@ -432,9 +176,14 @@ class DbtColumnLineageExtractor:
                 warnings.warn(f"Parent model {parent} not found in catalog")
         return parent_catalog
 
-    def _extract_lineage_for_model(self, model_sql, schema, model_node, selected_columns=[]):
+    def _extract_lineage_for_model(self, model_sql, schema, model_node, resource_type, selected_columns=[]):
         lineage_map = {}
         parsed_model_sql = maybe_parse(model_sql, dialect=self.dialect)
+        # sqlglot does not unfold * to schema when the schema has quotes, or upper (for BigQuery)
+        if self.dialect == "postgres":
+            parsed_model_sql = parsing_utils.remove_quotes(parsed_model_sql)
+        if self.dialect == "bigquery":
+            parsed_model_sql = parsing_utils.remove_upper(parsed_model_sql)
         qualified_expr, scope = prepare_scope(parsed_model_sql, schema=schema, dialect=self.dialect)
         def normalize_column_name(name: str) -> str:
             name = name.strip('"').strip("'")
@@ -442,29 +191,21 @@ class DbtColumnLineageExtractor:
             name = re.sub(r"::\s*\w+$", "", name)
             if name.startswith("$"):
                 name = name[1:]
-            return name.lower()
-
-
-        # Get columns if none provided
-        if not selected_columns:
-            try:
-                sql = sqlglot.parse_one(model_sql, dialect=self.dialect)
-                selected_columns = [
-                    column.alias_or_name.lower()
-                    for column in sql.select.expressions.expressions
-                    if isinstance(column, (exp.Column, exp.Alias))
-                ]
-            except Exception as e:
-                warnings.warn(f"Error parsing SQL for model {model_node}: {str(e)}")
-                return {}
+            return name
 
         for column_name in selected_columns:
             normalized_column = normalize_column_name(column_name)
+            if resource_type == "snapshot" and column_name in ["dbt_valid_from", "dbt_valid_to", "dbt_updated_at", "dbt_scd_id"]:
+                self.logger.debug(f"Skipping special snapshot column {column_name}")
+                lineage_map[column_name] = []
+                continue
+        
             try:
                 lineage_node = lineage(normalized_column, qualified_expr, schema=schema, dialect=self.dialect, scope=scope)
                 lineage_map[column_name] = lineage_node
             
             except SqlglotError:
+                
                 # Fallback: try to parse as expression and extract columns
                 try:
                     # parsed_sql = sqlglot.parse_one(model_sql, dialect=self.dialect)
@@ -500,7 +241,7 @@ class DbtColumnLineageExtractor:
                                 )
                         lineage_map[column_name] = lineage_nodes
                     else:
-                        self.logger.warning(f"No expression found for alias '{column_name}'")
+                        self.logger.warning(f"No expression found for alias '{model_node}' '{column_name}'")
                         lineage_map[column_name] = []
 
 
@@ -549,12 +290,13 @@ class DbtColumnLineageExtractor:
                 columns = self._get_list_of_columns_for_a_dbt_node(model_node)
                 schema = self._generate_schema_dict_from_catalog(parent_catalog)
                 model_sql = model_info["compiled_code"]
-
+                resource_type = model_info.get("resource_type")
                 model_lineage = self._extract_lineage_for_model(
                     model_sql=model_sql,
                     schema=schema,
                     model_node=model_node,
                     selected_columns=columns,
+                    resource_type=resource_type,
                 )
                 if model_lineage:  # Only add if we got valid lineage results
                     lineage_map[model_node] = model_lineage
@@ -575,10 +317,12 @@ class DbtColumnLineageExtractor:
             raise ValueError(f"Node source is not a table, but {node.source.key}")
         column_name = node.name.split(".")[-1].lower()
         table_name = f"{node.source.catalog}.{node.source.db}.{node.source.name}"
-        table_name = table_name.lower()
-
-        if table_name in self.node_mapping:
-            dbt_node = self.node_mapping[table_name].lower()
+        
+        for key, data in self.nodes_with_columns.items():
+            if key.lower() == table_name.lower():
+                dbt_node = data["unique_id"]
+                break
+        
         else:
             # Check if the table is hardcoded in raw code.
             raw_code = self.manifest["nodes"][model_node]["raw_code"].lower()
@@ -612,10 +356,10 @@ class DbtColumnLineageExtractor:
         columns_lineage = {}
         # Initialize all selected models before accessing them
         for model in self.selected_models:
-            columns_lineage[model.lower()] = {}
+            columns_lineage[model] = {}
 
         for model_node, columns in lineage_map.items():
-            model_node_lower = model_node.lower()
+            model_node_lower = model_node
             if not self.manifest.get("parent_map", {}).get(model_node_lower) and \
                 not self.manifest.get("child_map", {}).get(model_node_lower):
                     continue
@@ -655,11 +399,11 @@ class DbtColumnLineageExtractor:
         children_lineage = {}
 
         for child_model, columns in lineage_to_direct_parents.items():
-            child_model = child_model.lower()
+            child_model = child_model
             for child_column, parents in columns.items():
                 child_column = child_column.lower()
                 for parent in parents:
-                    parent_model = parent["dbt_node"].lower()
+                    parent_model = parent["dbt_node"]
                     parent_column = parent["column"].lower()
 
                     if parent_model not in children_lineage:
@@ -786,13 +530,14 @@ class DBTNodeCatalog:
             raise ValueError(f"Node data missing metadata field: {node_data}")
 
         self.database = node_data["metadata"]["database"]
+        self.unique_id = node_data["unique_id"].lower()
         self.schema = node_data["metadata"]["schema"]
         self.name = node_data["metadata"]["name"]
         self.columns = node_data["columns"]
 
     @property
     def full_table_name(self):
-        return f"{self.database}.{self.schema}.{self.name}".lower()
+        return self.unique_id
 
     def get_column_types(self):
         return {col_name: col_info["type"] for col_name, col_info in self.columns.items()}
@@ -802,6 +547,8 @@ class DBTNodeManifest:
     def __init__(self, node_data):
         self.database = node_data["database"]
         self.schema = node_data["schema"]
+        self.relation_name = parsing_utils.normalize_table_relation_name(node_data["relation_name"])
+        # self.dialect = dialect
         # Check alias first
         if node_data.get("alias"):
             self.name = node_data.get("alias")
@@ -811,7 +558,6 @@ class DBTNodeManifest:
 
     @property
     def full_table_name(self):
-        return f"{self.database}.{self.schema}.{self.name}".lower()
-
+        return self.relation_name
 
 # TODO: add metadata columns to external tables

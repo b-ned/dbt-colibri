@@ -206,32 +206,39 @@ class DbtColibriReportGenerator:
 
         # Build all nodes (even if disconnected)
         all_ids = {
-            node_id for node_id, data in self.manifest.get("nodes", {}).items()
+            node_id
+            for node_id, data in self.manifest.get("nodes", {}).items()
             if data.get("resource_type") not in {"test", "macro"}
-        }.union(self.manifest.get("sources", {}).keys())
+        }.union({source_id for source_id in self.manifest.get("sources", {}).keys()})
+
         for node_id in all_ids:
             ensure_node(node_id)
 
         # Build database -> schema -> models tree (store only node IDs)
-        db_tree: Dict[str, Dict[str, List[dict]]] = {}
+        # Build database -> schema -> models tree (store only node IDs)
+        db_tree: Dict[str, Dict[str, List[str]]] = {}
         for node in nodes.values():
             # Only include non-test, non-macro nodes (already filtered above),
             # but keep both models and sources in the tree
             database = node.get("database") or "unknown"
             schema = node.get("schema") or "unknown"
 
-            if database not in db_tree:
-                db_tree[database] = {}
-            if schema not in db_tree[database]:
-                db_tree[database][schema] = []
+            db_tree.setdefault(database, {}).setdefault(schema, []).append(node["id"])
 
-            # Append only the node id for compactness
-            db_tree[database][schema].append(node["id"])
+        # Sort items within schemas by node name
+        for database, schemas in db_tree.items():
+            for schema, node_ids in schemas.items():
+                schemas[schema] = sorted(node_ids, key=lambda node_id: nodes[node_id]["name"].lower())
 
-        # Optionally sort entries for stable UI
-        for database in db_tree:
-            for schema in db_tree[database]:
-                db_tree[database][schema].sort(key=lambda node_id: nodes[node_id]["name"]) 
+        # Sort databases and schemas alphabetically
+        db_tree = {
+            db: {
+                schema: db_tree[db][schema]
+                for schema in sorted(db_tree[db].keys())
+            }
+            for db in sorted(db_tree.keys())
+        }
+
 
         # Build a tree based on file path (e.g., models/area/subarea/model.sql)
         # Structure: { rootSegment: { nextSegment: { ... }, __items__: [node_ids] } }
@@ -253,13 +260,26 @@ class DbtColibriReportGenerator:
 
         # Sort items within each folder node by name
         def sort_path_tree(folder: dict):
+            # Sort the items in this folder
             if "__items__" in folder:
-                folder["__items__"].sort(key=lambda node_id: nodes[node_id]["name"]) 
+                folder["__items__"].sort(key=lambda node_id: nodes[node_id]["name"].lower())
+
+            # Recursively sort child folders
             for key, val in list(folder.items()):
                 if key == "__items__":
                     continue
                 if isinstance(val, dict):
-                    sort_path_tree(val)
+                    folder[key] = sort_path_tree(val)
+
+            # Rebuild dict with sorted folder keys first, then __items__ last
+            sorted_folder = {}
+            for key in sorted(k for k in folder.keys() if key != "__items__"):
+                sorted_folder[key] = folder[key]
+            if "__items__" in folder:
+                sorted_folder["__items__"] = folder["__items__"]
+
+            return sorted_folder
+
         sort_path_tree(path_tree)
 
         # Build the final structure

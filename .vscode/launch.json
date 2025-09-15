@@ -1,0 +1,149 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+
+        {
+            "name": "Python Debugger: Current File",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Python Debugger: Main.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "main.py",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Debug Pytest Test",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "args": [
+                "-q",
+                "tests/test_case_sensitivity.py", 
+                "-vv", 
+                "-s" // run only this test, adjust as needed
+            ],
+            "justMyCode": true,
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Debug: BigQuery Dialect",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "src.dbt_colibri.cli.cli",
+            "args": [
+                "generate",
+                "--manifest",
+                "tests/test_data/bigquery/manifest.json",
+                "--catalog",
+                "tests/test_data/bigquery/catalog.json",
+                "--output-dir",
+                "output/bigquery"
+            ],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Debug: DuckDB Dialect",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "src.dbt_colibri.cli.cli",
+            "args": [
+                "generate",
+                "--manifest",
+                "tests/test_data/duckdb/manifest.json",
+                "--catalog",
+                "tests/test_data/duckdb/catalog.json",
+                "--output-dir",
+                "output/duckdb"
+            ],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Debug: Postgres Dialect",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "src.dbt_colibri.cli.cli",
+            "args": [
+                "generate",
+                "--manifest",
+                "tests/test_data/postgres/manifest.json",
+                "--catalog",
+                "tests/test_data/postgres/catalog.json",
+                "--output-dir",
+                "output/postgres"
+            ],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Debug: Redshift Dialect",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "src.dbt_colibri.cli.cli",
+            "args": [
+                "generate",
+                "--manifest",
+                "tests/test_data/redshift/manifest.json",
+                "--catalog",
+                "tests/test_data/redshift/catalog.json",
+                "--output-dir",
+                "output/redshift"
+            ],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Debug: dbt v1.10",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "src.dbt_colibri.cli.cli",
+            "args": [
+                "generate",
+                "--manifest",
+                "tests/test_data/1.10/manifest.json",
+                "--catalog",
+                "tests/test_data/1.10/catalog.json",
+                "--output-dir",
+                "output/1.10"
+            ],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Debug: dbt v1.9",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "src.dbt_colibri.cli.cli",
+            "args": [
+                "generate",
+                "--manifest",
+                "tests/test_data/1.9/manifest.json",
+                "--catalog",
+                "tests/test_data/1.9/catalog.json",
+                "--output-dir",
+                "output/1.9"
+            ],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Debug: dbt v1.8",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "src.dbt_colibri.cli.cli",
+            "args": [
+                "generate",
+                "--manifest",
+                "tests/test_data/1.8/manifest.json",
+                "--catalog",
+                "tests/test_data/1.8/catalog.json",
+                "--output-dir",
+                "output/1.8"
+            ],
+            "console": "integratedTerminal"
+        }
+    ]
+}
