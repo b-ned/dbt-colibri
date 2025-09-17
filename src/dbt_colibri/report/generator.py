@@ -165,22 +165,36 @@ class DbtColibriReportGenerator:
             })
 
         # Traverse all edges from parents_map
+        def _normalize_col_name(col: str) -> str:
+            """Normalize a column name for display and matching.
+
+            - Strip wrapping single or double quotes if they wrap the entire name.
+            - Preserve internal characters, including spaces.
+            """
+            if isinstance(col, str) and len(col) >= 2 and col[0] == col[-1] and col[0] in {'"', "'"}:
+                return col[1:-1]
+            return col
+
         for tgt_id, mapping in parents_map.items():
             for tgt_col, sources in mapping.items():
                 for src in sources:
                     src_id, src_col = src["dbt_node"], src["column"]
+                    # Normalize only the source column name to avoid quoted values like "\"order item_id\""
+                    norm_src_col = _normalize_col_name(src_col)
+                    # Also normalize target for consistency in edge ids/labels (target issues were not observed but harmless)
+                    norm_tgt_col = _normalize_col_name(tgt_col)
                     
                     # Ensure both nodes exist
                     src_node = ensure_node(src_id)
                     tgt_node = ensure_node(tgt_id)
                     
                     # Update column lineage flags
-                    if src_col in src_node["columns"]:
-                        src_node["columns"][src_col]["hasLineage"] = True
-                    if tgt_col in tgt_node["columns"]:
-                        tgt_node["columns"][tgt_col]["hasLineage"] = True
+                    if norm_src_col in src_node["columns"]:
+                        src_node["columns"][norm_src_col]["hasLineage"] = True
+                    if norm_tgt_col in tgt_node["columns"]:
+                        tgt_node["columns"][norm_tgt_col]["hasLineage"] = True
                     
-                    add_edge(src_id, src_col, tgt_id, tgt_col)
+                    add_edge(src_id, norm_src_col, tgt_id, norm_tgt_col)
 
         # Traverse all refs to add model-level relationships
         for node_id, node_data in self.manifest.get("nodes", {}).items():
