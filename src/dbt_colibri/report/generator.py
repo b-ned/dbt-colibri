@@ -44,6 +44,21 @@ class DbtColibriReportGenerator:
             return "staging"
         return "unknown"
     
+    def _get_node_display_name(self, node_id: str) -> str:
+        """Return a human-friendly node name.
+
+        For versioned dbt models (e.g. "model.project.model_name.v2"), include the
+        version suffix in the name as "model_name_v2". For all other nodes, use the
+        last segment of the node_id.
+        """
+        parts = node_id.split(".")
+        if len(parts) >= 4 and parts[0] == "model":
+            version_segment = parts[-1]
+            if isinstance(version_segment, str) and version_segment.startswith("v") and version_segment[1:].isdigit():
+                base_name = parts[-2]
+                return f"{base_name}_{version_segment}"
+        return parts[-1]
+    
     def build_manifest_node_data(self, node_id: str) -> dict:
         """Build node metadata from manifest and catalog data."""
         node_data = (
@@ -75,20 +90,26 @@ class DbtColibriReportGenerator:
                 "database": None,
             }
 
+        # Build columns based ONLY on catalog columns (real table),
+        # enriching with manifest metadata when available.
         columns = {}
+        manifest_columns = {}
         if node_data and node_data.get("columns"):
             for col, val in node_data["columns"].items():
-                columns[col.lower()] = {
+                manifest_columns[col.lower()] = {
                     "contractType": val.get("data_type"),
                     "description": val.get("description"),
                 }
-        if catalog_data:
-            if catalog_data.get("columns"):
-                for col, val in catalog_data["columns"].items():
-                    col = col.lower()
-                    if col not in columns:
-                        columns[col] = {}
-                    columns[col]["dataType"] = val.get("type")
+        if catalog_data and catalog_data.get("columns"):
+            for col, val in catalog_data["columns"].items():
+                col_lc = col.lower()
+                entry = {"dataType": val.get("type")}
+                if col_lc in manifest_columns:
+                    if manifest_columns[col_lc].get("contractType") is not None:
+                        entry["contractType"] = manifest_columns[col_lc]["contractType"]
+                    if manifest_columns[col_lc].get("description") is not None:
+                        entry["description"] = manifest_columns[col_lc]["description"]
+                columns[col_lc] = entry
 
         if node_data:
             node_type = node_data.get("resource_type", "unknown")
@@ -137,7 +158,7 @@ class DbtColibriReportGenerator:
                 
                 nodes[node_id] = {
                     "id": node_id,
-                    "name": node_id.split(".")[-1],
+                    "name": self._get_node_display_name(node_id),
                     "fullName": node_id,
                     "nodeType": meta["nodeType"],
                     "materialized": meta["materialized"],
