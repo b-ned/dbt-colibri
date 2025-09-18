@@ -1,6 +1,6 @@
 [project]
 name = "dbt-colibri"
-version = "0.2.6b3"
+version = "0.2.6b5"
 description = "A column lineage parser and dashboarding tool"
 authors = [
     { name="bned" }
