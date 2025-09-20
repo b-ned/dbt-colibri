@@ -10,7 +10,7 @@ A lightweight, developer-friendly CLI tool and self-hostable dashboard for extra
 
 Built for data teams who want transparent, flexible lineage tracking without vendor lock-in or complex enterprise tooling.
 
-## 🎯 Why dbt-colibri?
+## Why dbt-colibri?
 
 - **🔍 Complete visibility**: Easy UI, track how every column flows through your dbt transformations
 - **⚡ Fast & lightweight**: Generate reports in seconds from your existing dbt artifacts
@@ -21,7 +21,7 @@ Live demo of dashboard: [https://b-ned.github.io/colibri-demo/](https://b-ned.gi
 ![dbt-colibri dashboard](https://github.com/b-ned/dbt-colibri/blob/d31ece39bacf862e485233aad3e84df9a7618946/static/ui_colibri_readme.png)
 
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Installation
 
@@ -50,7 +50,7 @@ pip install dbt-colibri
 
 That's it! Your column lineage dashboard is ready. Note you can also use dbt run, to generate the `manifest.json`.
 
-## 📖 Documentation
+## Documentation
 
 ### CLI Commands
 
@@ -86,7 +86,7 @@ your-dbt-project/
     └── colibri-manifest.json
 ```
 
-## 🔧 Advanced Usage
+## Advanced Usage
 
 ### CI/CD Integration
 
@@ -104,7 +104,7 @@ You can find the full example workflow at [`docs/github_pages_example.yml`](docs
 
 Gitlab has similar functionality. Other options are writing the file to a bucket and mount it into a web server container (nginx).
 
-## 🛠️ Technical Details
+## Technical Details
 
 ### Requirements
 
@@ -133,7 +133,7 @@ dbt-colibri leverages:
 - **dbt artifacts** (manifest.json, catalog.json) for metadata
 - **Static HTML/JS** for zero-dependency dashboard deployment
 
-## 🤝 Contributing
+## Contributing
 
 We welcome contributions! Raise an issue or request a feature, if you are open to contribute you can let us now in the issue.
 
@@ -158,11 +158,11 @@ pytest
 ruff format
 ```
 
-## 📝 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 This project builds upon excellent open source work:
 
@@ -171,5 +171,3 @@ This project builds upon excellent open source work:
 - **[elementary-data](https://github.com/elementary-data/elementary)** - Inspiration for static HTML report structure
 
 ---
-
-**From one dbt user to another — built to make your workflow better.**
