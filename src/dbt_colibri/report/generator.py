@@ -211,27 +211,23 @@ class DbtColibriReportGenerator:
                     
                     add_edge(src_id, norm_src_col, tgt_id, norm_tgt_col)
 
-        # Traverse all refs to add model-level relationships
+        # Traverse all depends_on nodes to add model-level relationships
         for node_id, node_data in self.manifest.get("nodes", {}).items():
             if node_data.get("resource_type") in {"test", "macro"}:
                 continue  # Skip test and macro nodes
-            if "refs" in node_data:
-                for ref in node_data["refs"]:
-                    ref_name = ref.get("name")
-                    ref_node_id = next(
-                        (id for id in self.manifest["nodes"] if id.endswith(f".{ref_name}")), 
-                        None
-                    )
-                    if ref_node_id:
-                        ensure_node(ref_node_id)
-                        ensure_node(node_id)
-                        edges.append({
-                            "id": f"{ref_node_id}::->{node_id}::",
-                            "source": ref_node_id,
-                            "target": node_id,
-                            "sourceColumn": "",
-                            "targetColumn": "",
-                        })
+            
+            for dep_node_id in node_data.get("depends_on", {}).get("nodes", []):
+                # Ensure both nodes exist in your graph
+                ensure_node(dep_node_id)
+                ensure_node(node_id)
+
+                edges.append({
+                    "id": f"{dep_node_id}::->{node_id}::",
+                    "source": dep_node_id,
+                    "target": node_id,
+                    "sourceColumn": "",
+                    "targetColumn": "",
+                })
 
         # Build all nodes (even if disconnected)
         all_ids = {
