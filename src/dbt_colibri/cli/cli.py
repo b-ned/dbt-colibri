@@ -76,6 +76,20 @@ def generate_report(output_dir, manifest, catalog, debug):
         logger.info("Loading dbt manifest and catalog...")
         extractor = DbtColumnLineageExtractor(manifest, catalog)
 
+        # --- Log version info (matches what will end up in metadata) ---
+        manifest_meta = extractor.manifest.get("metadata", {})
+        adapter = manifest_meta.get("adapter_type", "unknown")
+        dbt_version = manifest_meta.get("dbt_version", "unknown")
+        project = manifest_meta.get("project_name", "unknown")
+
+        logger.info(
+            "Running with configuration:\n"
+            f"         dbt-colbri version : {extractor.colibri_version}\n"
+            f"         dbt version        : {dbt_version}\n"
+            f"         SQL dialect        : {adapter}\n"
+            f"         dbt project        : {project}"
+        )
+
         logger.info("Extracting lineage data...")
         report_generator = DbtColibriReportGenerator(extractor)
 
