@@ -26,11 +26,27 @@
             "module": "pytest",
             "args": [
                 "-q",
-                "tests/test_case_sensitivity.py", 
+                "tests/test_extractor.py", 
                 "-vv", 
                 "-s" // run only this test, adjust as needed
             ],
             "justMyCode": true,
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Debug: Edge Case",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "src.dbt_colibri.cli.cli",
+            "args": [
+                "generate",
+                "--manifest",
+                "dev_data/no_materialization/manifest.json",
+                "--catalog",
+                "dev_data/no_materialization/catalog.json",
+                "--output-dir",
+                "output/edge_case"
+            ],
             "console": "integratedTerminal"
         },
         {
