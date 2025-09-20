@@ -29,7 +29,7 @@ def setup_logging(level=logging.INFO):
         logger.addHandler(handler)
 
     logger.setLevel(level)
-    logger.propagate = False
+    logger.propagate = True
     return logger
 
 
