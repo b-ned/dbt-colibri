@@ -1,10 +1,10 @@
-import warnings
+
 from sqlglot.lineage import maybe_parse, SqlglotError, exp
 import logging
 from ..utils import json_utils, parsing_utils
 from .lineage import lineage, prepare_scope
 import re
-
+from importlib.metadata import version, PackageNotFoundError
 
 
 def get_select_expressions(expr: exp.Expression) -> list[exp.Expression]:
@@ -26,7 +26,7 @@ def extract_column_refs(expr: exp.Expression) -> list[exp.Column]:
 class DbtColumnLineageExtractor:
     def __init__(self, manifest_path, catalog_path, selected_models=[]):
         # Set up logging
-        self.logger = logging.getLogger("dbt_column_lineage")
+        self.logger = logging.getLogger("colibri")
 
         # Read manifest and catalog files
         self.manifest = json_utils.read_json(manifest_path)
@@ -39,14 +39,54 @@ class DbtColumnLineageExtractor:
         self.parent_map = self.manifest.get("parent_map", {})
         self.child_map = self.manifest.get("child_map", {})
         # Process selected models
-
+        self.colibri_version = self._get_colibri_version()
         self.selected_models = [
             node
             for node in self.manifest["nodes"].keys()
             if self.manifest["nodes"][node].get("resource_type") in ("model", "snapshot")
         ]
 
+        # Run validation checks
+        self._validate_models()
 
+    def _validate_models(self):
+        """
+        Validate models in manifest and catalog:
+        1. Check for missing compiled SQL.
+        2. Check for non-materialized models.
+        """
+        all_models = [
+            node_id for node_id, node in self.manifest.get("nodes", {}).items()
+            if node.get("resource_type") == "model"
+        ]
+
+        # --- Missing compiled SQL ---
+        missing_compiled = [
+            node_id for node_id in all_models
+            if not self.manifest["nodes"][node_id].get("compiled_code")
+        ]
+
+        if missing_compiled:
+            total = len(all_models)
+            missing = len(missing_compiled)
+            msg = f"{missing}/{total} models are missing compiled SQL. Ensure dbt compile was run."
+            
+            self.logger.error(msg)
+
+        # --- Non-materialized models (missing from catalog) ---
+        catalog_models = set(self.catalog.get("nodes", {}).keys())
+        non_materialized = set(all_models) - catalog_models
+
+        if non_materialized:
+            msg = f"{len(non_materialized)}/{len(all_models)} models are not materialized (missing from catalog)."
+            self.logger.error(msg)
+
+    def _get_colibri_version(self):
+        try:
+            return version("dbt-colibri")
+        except PackageNotFoundError:
+            return "unknown"
+        
     def _detect_adapter_type(self):
         """
         Detect the adapter type from the manifest metadata.
@@ -145,13 +185,13 @@ class DbtColumnLineageExtractor:
                     dbt_node = DBTNodeManifest(node)
                     mapping[dbt_node.full_table_name] = key
                 except Exception as e:
-                    warnings.warn(f"Error processing node {key}: {e}")
+                    self.logger.warning(f"Error processing node {key}: {e}")
         for key, node in self.manifest["sources"].items():
             try:
                 dbt_node = DBTNodeManifest(node)
                 mapping[dbt_node.full_table_name] = key
             except Exception as e:
-                warnings.warn(f"Error processing source {key}: {e}")
+                self.logger.warning(f"Error processing source {key}: {e}")
         return mapping
 
     def _get_list_of_columns_for_a_dbt_node(self, node):
@@ -160,7 +200,7 @@ class DbtColumnLineageExtractor:
         elif node in self.catalog["sources"]:
             columns = self.catalog["sources"][node]["columns"]
         else:
-            warnings.warn(f"Node {node} not found in catalog, maybe it's not materialized")
+            self.logger.warning(f"Node {node} not found in catalog, maybe it's not materialized")
             return []
         return [col.lower() for col in list(columns.keys())]
 
@@ -173,7 +213,7 @@ class DbtColumnLineageExtractor:
             elif parent in self.catalog["sources"]:
                 parent_catalog["sources"][parent] = self.catalog["sources"][parent]
             else:
-                warnings.warn(f"Parent model {parent} not found in catalog")
+                self.logger.warning(f"Parent model {parent} not found in catalog")
         return parent_catalog
 
     def _extract_lineage_for_model(self, model_sql, schema, model_node, resource_type, selected_columns=[]):
@@ -220,7 +260,7 @@ class DbtColumnLineageExtractor:
                         if alias:
                             alias_expr_map[alias.lower()] = expr
                     expr = alias_expr_map.get(normalized_column)
-                    self.logger.info(f"Available aliases in query: {list(alias_expr_map.keys())}")
+                    self.logger.debug(f"Available aliases in query: {list(alias_expr_map.keys())}")
                     if expr:
                         upstream_columns = extract_column_refs(expr)
                         lineage_nodes = []
@@ -241,7 +281,7 @@ class DbtColumnLineageExtractor:
                                 )
                         lineage_map[column_name] = lineage_nodes
                     else:
-                        self.logger.warning(f"No expression found for alias '{model_node}' '{column_name}'")
+                        self.logger.debug(f"No expression found for alias '{model_node}' '{column_name}'")
                         lineage_map[column_name] = []
 
 
@@ -300,6 +340,7 @@ class DbtColumnLineageExtractor:
                 )
                 if model_lineage:  # Only add if we got valid lineage results
                     lineage_map[model_node] = model_lineage
+           
             except Exception as e:
                 error_count += 1
                 self.logger.error(f"Error processing model {model_node}: {str(e)}")
@@ -346,7 +387,7 @@ class DbtColumnLineageExtractor:
                     break
 
             if not found_hardcoded:
-                warnings.warn(f"Table {table_name} not found in node mapping")
+                self.logger.warning(f"Table {table_name} not found in node mapping")
                 dbt_node = f"_NOT_FOUND___{table_name.lower()}"
             # raise ValueError(f"Table {table_name} not found in node mapping")
 

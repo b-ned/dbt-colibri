@@ -5,7 +5,7 @@ import tempfile
 from dbt_colibri.lineage_extractor.extractor import DbtColumnLineageExtractor
 from unittest.mock import patch, MagicMock
 from sqlglot.lineage import SqlglotError
-
+import logging
 
 def test_adapter_type_validation_missing_adapter_type(dbt_valid_test_data_dir):
     """Test that missing adapter_type in manifest raises ValueError"""
@@ -202,7 +202,7 @@ def test_nodes_with_columns(dbt_valid_test_data_dir):
         assert isinstance(node_info["columns"], dict)
 
 
-def test_get_list_of_columns(dbt_valid_test_data_dir):
+def test_get_list_of_columns(dbt_valid_test_data_dir, caplog):
     """Test retrieving columns for a dbt node."""
     if dbt_valid_test_data_dir is None:
         pytest.skip("No valid versioned test data present")
@@ -223,11 +223,13 @@ def test_get_list_of_columns(dbt_valid_test_data_dir):
     assert columns
     assert isinstance(columns, list)
     assert len(columns) >= 0
-    
-    # Test with a non-existent node
-    with pytest.warns(UserWarning):
-        no_columns = extractor._get_list_of_columns_for_a_dbt_node("model.does_not_exist")
+
+    # Test with a guaranteed non-existent node
+    missing_node = "model.does_not_exist"
+    with caplog.at_level(logging.WARNING, logger="colibri"):
+        no_columns = extractor._get_list_of_columns_for_a_dbt_node(missing_node)
         assert no_columns == []
+        assert missing_node in caplog.text
 
 def test_get_parent_nodes_catalog(dbt_valid_test_data_dir):
     """Test getting parent nodes catalog."""

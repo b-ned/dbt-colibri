@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 from typing import Dict, List, Optional
 from datetime import datetime, timezone
-from importlib.metadata import version, PackageNotFoundError
+
 
 from ..lineage_extractor.extractor import DbtColumnLineageExtractor
 
@@ -23,13 +23,7 @@ class DbtColibriReportGenerator:
         self.manifest = extractor.manifest
         self.catalog = extractor.catalog
         self.logger = extractor.logger
-        self.colibri_version = self._get_colibri_version()
-    
-    def _get_colibri_version(self):
-        try:
-            return version("dbt-colibri")
-        except PackageNotFoundError:
-            return "unknown"
+        self.colibri_version = extractor.colibri_version
 
     def detect_model_type(self, node_id: str) -> str:
         """Detect model type based on naming conventions."""
