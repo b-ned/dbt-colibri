@@ -424,6 +424,7 @@ class DbtColumnLineageExtractor:
                 for n in node.walk():
                     if n.source.key == "table":
                         parent_columns = self.get_dbt_node_from_sqlglot_table_node(n, model_node)
+                        parent_columns["lineage_type"] = node.lineage_type
                         if (
                             parent_columns["dbt_node"] != model_node
                             and parent_columns not in columns_lineage[model_node_lower][column]
