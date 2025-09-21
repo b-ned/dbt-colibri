@@ -192,23 +192,35 @@ class DbtColibriReportGenerator:
 
         for tgt_id, mapping in parents_map.items():
             for tgt_col, sources in mapping.items():
+                # Ensure target node exists and normalize target column once
+                tgt_node = ensure_node(tgt_id)
+                norm_tgt_col = _normalize_col_name(tgt_col)
+
+                # Aggregate lineage type for the target column
+                # If multiple parents -> "transformation"; otherwise use the sole parent's lineage_type
+                aggregated_lineage = "unknown"
+                if isinstance(sources, list) and len(sources) >= 2:
+                    aggregated_lineage = "transformation"
+                elif isinstance(sources, list) and len(sources) == 1:
+                    aggregated_lineage = sources[0].get("lineage_type") or "unknown"
+
+                if norm_tgt_col in tgt_node["columns"]:
+                    tgt_node["columns"][norm_tgt_col]["lineageType"] = aggregated_lineage
+
                 for src in sources:
                     src_id, src_col = src["dbt_node"], src["column"]
                     # Normalize only the source column name to avoid quoted values like "\"order item_id\""
                     norm_src_col = _normalize_col_name(src_col)
-                    # Also normalize target for consistency in edge ids/labels (target issues were not observed but harmless)
-                    norm_tgt_col = _normalize_col_name(tgt_col)
-                    
-                    # Ensure both nodes exist
+
+                    # Ensure source node exists
                     src_node = ensure_node(src_id)
-                    tgt_node = ensure_node(tgt_id)
-                    
+
                     # Update column lineage flags
                     if norm_src_col in src_node["columns"]:
                         src_node["columns"][norm_src_col]["hasLineage"] = True
                     if norm_tgt_col in tgt_node["columns"]:
                         tgt_node["columns"][norm_tgt_col]["hasLineage"] = True
-                    
+
                     add_edge(src_id, norm_src_col, tgt_id, norm_tgt_col)
 
         # Traverse all depends_on nodes to add model-level relationships

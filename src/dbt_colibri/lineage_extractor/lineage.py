@@ -18,7 +18,7 @@ if t.TYPE_CHECKING:
 logger = logging.getLogger("sqlglot")
 
 
-@dataclass(frozen=True)
+@dataclass
 class Node:
     name: str
     expression: exp.Expression
@@ -26,7 +26,7 @@ class Node:
     downstream: t.List[Node] = field(default_factory=list)
     source_name: str = ""
     reference_node_name: str = ""
-
+    lineage_type: str = ""
     def walk(self) -> t.Iterator[Node]:
         yield self
 
@@ -130,6 +130,38 @@ def lineage(
 
     return to_node(column, scope, dialect, trim_selects=trim_selects)
 
+def classify_column_lineage(select_expr: exp.Expression) -> str:
+    """
+    Classify how a column was derived in the SELECT list.
+    Returns: "pass-through", "rename", "transformation"
+    """
+    def base_col_name(col: exp.Column) -> str:
+        # Ignore table/CTE prefix
+        return col.name
+
+    # Plain Column
+    if isinstance(select_expr, exp.Column):
+        return "pass-through"
+
+    # Alias (could be col AS alias)
+    if isinstance(select_expr, exp.Alias):
+        inner = select_expr.this
+        if isinstance(inner, exp.Column):
+            # Compare base column name vs alias
+            if base_col_name(inner) == select_expr.alias_or_name:
+                return "pass-through"
+            return "rename"
+        return "transformation"
+
+    # Any other expression
+    return "transformation"
+
+# Lineage ranking helpers (higher is more transformative)
+_LINEAGE_RANK: dict[str, int] = {"pass-through": 0, "rename": 1, "transformation": 2}
+_RANK_TO_LINEAGE: dict[int, str] = {v: k for k, v in _LINEAGE_RANK.items()}
+
+def _max_lineage(a: str, b: str) -> str:
+    return _RANK_TO_LINEAGE[max(_LINEAGE_RANK.get(a, 0), _LINEAGE_RANK.get(b, 0))]
 
 def to_node(
     column: str | int,
@@ -160,7 +192,7 @@ def to_node(
             exp.Star() if scope.expression.is_star else scope.expression,
         )
     )
-
+    lineage_type = classify_column_lineage(select)
     if isinstance(scope.expression, exp.Subquery):
         for source in scope.subquery_scopes:
             return to_node(
@@ -171,7 +203,7 @@ def to_node(
                 source_name=source_name,
                 reference_node_name=reference_node_name,
                 trim_selects=trim_selects,
-                visited=visited,
+                visited=visited
             )
     if isinstance(scope.expression, exp.SetOperation):
         name = type(scope.expression).__name__.upper()
@@ -204,7 +236,16 @@ def to_node(
                 trim_selects=trim_selects,
                 visited=visited,
             )
-
+        # Aggregate lineage type from children for set operations
+        if upstream and upstream.downstream:
+            agg_type = "pass-through"
+            for child in upstream.downstream:
+                if child is None:
+                    continue
+                agg_type = _max_lineage(agg_type, child.lineage_type)
+            upstream.lineage_type = agg_type
+        else:
+            upstream.lineage_type = lineage_type
         return upstream
 
     if trim_selects and isinstance(scope.expression, exp.Select):
@@ -222,6 +263,7 @@ def to_node(
         expression=select,
         source_name=source_name or "",
         reference_node_name=reference_node_name or "",
+        lineage_type=lineage_type,
     )
 
     if upstream:
@@ -301,5 +343,14 @@ def to_node(
             node.downstream.append(
                 Node(name=c.sql(comments=False), source=source, expression=source)
             )
+
+    # Aggregate lineage across this node and its children (transformation > rename > pass-through)
+    agg_type = lineage_type
+    if node.downstream:
+        for child in node.downstream:
+            if child is None:
+                continue
+            agg_type = _max_lineage(agg_type, child.lineage_type)
+    node.lineage_type = agg_type
 
     return node
