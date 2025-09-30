@@ -17,6 +17,7 @@ Built for data teams who want transparent, flexible lineage tracking without ven
 - **🏠 Self-hosted**: No cloud dependencies or external services required
 
 Live demo of dashboard: [https://demo.colibri-data.com/](https://demo.colibri-data.com/)
+
 Documentation site: [https://www.colibri-data.com/docs](https://www.colibri-data.com/docs)
 
 <!-- Add a screenshot here when available -->
