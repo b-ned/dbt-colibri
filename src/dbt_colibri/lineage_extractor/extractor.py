@@ -34,8 +34,8 @@ class DbtColumnLineageExtractor:
         self.catalog = json_utils.read_json(catalog_path)      
         self.schema_dict = self._generate_schema_dict_from_catalog()
         self.dialect = self._detect_adapter_type()
-        # Build a compact mapping from relation name -> unique_id to avoid duplicating catalog data in memory
-        self.table_to_node = self.build_table_to_node()
+        # self.node_mapping = self._get_dict_mapping_full_table_name_to_dbt_node()
+        self.nodes_with_columns = self.build_nodes_with_columns()
         # Store references to parent and child maps for easy access
         self.parent_map = self.manifest.get("parent_map", {})
         self.child_map = self.manifest.get("child_map", {})
@@ -388,10 +388,14 @@ class DbtColumnLineageExtractor:
         if node.source.key != "table":
             raise ValueError(f"Node source is not a table, but {node.source.key}")
         column_name = node.name.split(".")[-1].lower()
-        table_name = f"{node.source.catalog}.{node.source.db}.{node.source.name}".lower()
-
-        dbt_node = self.table_to_node.get(table_name)
-        if not dbt_node:
+        table_name = f"{node.source.catalog}.{node.source.db}.{node.source.name}"
+        
+        for key, data in self.nodes_with_columns.items():
+            if key.lower() == table_name.lower():
+                dbt_node = data["unique_id"]
+                break
+        
+        else:
             # Check if the table is hardcoded in raw code.
             raw_code = self.manifest["nodes"][model_node]["raw_code"].lower()
 
