@@ -5,6 +5,7 @@ from ..utils import json_utils, parsing_utils
 from .lineage import lineage, prepare_scope
 import re
 from importlib.metadata import version, PackageNotFoundError
+import gc
 
 
 def get_select_expressions(expr: exp.Expression) -> list[exp.Expression]:
@@ -33,18 +34,22 @@ class DbtColumnLineageExtractor:
         self.catalog = json_utils.read_json(catalog_path)      
         self.schema_dict = self._generate_schema_dict_from_catalog()
         self.dialect = self._detect_adapter_type()
-        # self.node_mapping = self._get_dict_mapping_full_table_name_to_dbt_node()
-        self.nodes_with_columns = self.build_nodes_with_columns()
+        # Build a compact mapping from relation name -> unique_id to avoid duplicating catalog data in memory
+        self.table_to_node = self.build_table_to_node()
         # Store references to parent and child maps for easy access
         self.parent_map = self.manifest.get("parent_map", {})
         self.child_map = self.manifest.get("child_map", {})
         # Process selected models
         self.colibri_version = self._get_colibri_version()
-        self.selected_models = [
-            node
-            for node in self.manifest["nodes"].keys()
-            if self.manifest["nodes"][node].get("resource_type") in ("model", "snapshot")
-        ]
+        # Respect user-provided selection; otherwise default to all model/snapshot nodes
+        if selected_models:
+            self.selected_models = selected_models
+        else:
+            self.selected_models = [
+                node
+                for node in self.manifest["nodes"].keys()
+                if self.manifest["nodes"][node].get("resource_type") in ("model", "snapshot")
+            ]
 
         # Run validation checks
         self._validate_models()
@@ -149,6 +154,32 @@ class DbtColumnLineageExtractor:
                 merged[relation_name]["columns"] = self.catalog["sources"][node_id]["columns"]
 
         return merged
+
+    def build_table_to_node(self):
+        """
+        Build a minimal mapping from normalized relation name to the dbt unique_id.
+        This avoids holding full column structures in memory.
+        """
+        mapping = {}
+        all_nodes = {**self.manifest.get("nodes", {}), **self.manifest.get("sources", {})}
+        for node_id, node in all_nodes.items():
+            if node.get("resource_type") not in ["model", "source", "seed", "snapshot"]:
+                continue
+            try:
+                if node.get("config", {}).get("materialized") == "ephemeral":
+                    relation_name = (
+                        (node.get("database") or "").strip() + "." +
+                        (node.get("schema") or "").strip() + "." +
+                        (node.get("alias") or node.get("name"))
+                    )
+                else:
+                    relation_name = parsing_utils.normalize_table_relation_name(node["relation_name"])
+                if relation_name:
+                    mapping[str(relation_name).lower()] = node_id
+            except Exception as e:
+                self.logger.debug(f"Skipping node {node_id} while building table map: {e}")
+                continue
+        return mapping
     
     def _generate_schema_dict_from_catalog(self, catalog=None):
         if not catalog:
@@ -357,14 +388,10 @@ class DbtColumnLineageExtractor:
         if node.source.key != "table":
             raise ValueError(f"Node source is not a table, but {node.source.key}")
         column_name = node.name.split(".")[-1].lower()
-        table_name = f"{node.source.catalog}.{node.source.db}.{node.source.name}"
-        
-        for key, data in self.nodes_with_columns.items():
-            if key.lower() == table_name.lower():
-                dbt_node = data["unique_id"]
-                break
-        
-        else:
+        table_name = f"{node.source.catalog}.{node.source.db}.{node.source.name}".lower()
+
+        dbt_node = self.table_to_node.get(table_name)
+        if not dbt_node:
             # Check if the table is hardcoded in raw code.
             raw_code = self.manifest["nodes"][model_node]["raw_code"].lower()
 
@@ -548,22 +575,180 @@ class DbtColumnLineageExtractor:
         return related_structure
 
     def extract_project_lineage(self):
-        self.logger.info("Building lineage map..")
-        lineage_map = self.build_lineage_map()
-        self.logger.info("Grabbing Parents")
-        lin_parents = self.get_columns_lineage_from_sqlglot_lineage_map(lineage_map)
-        self.logger.info("Grabbing Children")
-        lin_children = self.get_lineage_to_direct_children_from_lineage_to_direct_parents(lin_parents)
+        """
+        Stream lineage extraction to minimize peak memory:
+        - For each model, parse/qualify once.
+        - For each column, compute lineage, immediately materialize parents and update children.
+        - Do not accumulate sqlglot Node graphs across the entire project.
+        """
+        self.logger.info("Streaming lineage extraction (memory-optimized)...")
 
-        output = {
-            
-            "lineage": {
-                "parents": lin_parents,
-                "children": lin_children
-            }
-        }
+        parents: dict = {}
+        children: dict = {}
 
-        return output
+        # Prepare model list respecting selection if provided
+        all_models = (
+            [m for m in self.selected_models]
+            if self.selected_models
+            else [
+                node_id
+                for node_id, node in self.manifest.get("nodes", {}).items()
+                if node.get("resource_type") in ["model", "snapshot"]
+            ]
+        )
+
+        total_models = len(all_models)
+        processed_count = 0
+        error_count = 0
+
+        for model_node in all_models:
+            model_info = self.manifest["nodes"].get(model_node)
+            if not model_info:
+                continue
+
+            processed_count += 1
+            self.logger.debug(f"{processed_count}/{total_models} Processing model {model_node}")
+
+            try:
+                if model_info.get("path", "").endswith(".py"):
+                    self.logger.debug(
+                        f"Skipping column lineage detection for Python model {model_node}"
+                    )
+                    continue
+                if model_info.get("resource_type") not in ["model", "snapshot"]:
+                    continue
+                if not model_info.get("compiled_code"):
+                    self.logger.debug(f"Skipping {model_node} as it has no compiled SQL code")
+                    continue
+
+                parent_catalog = self._get_parent_nodes_catalog(model_info)
+                schema = self._generate_schema_dict_from_catalog(parent_catalog)
+                model_sql = model_info["compiled_code"]
+
+                # Parse and qualify once per model
+                parsed_model_sql = maybe_parse(model_sql, dialect=self.dialect)
+                if self.dialect == "postgres":
+                    parsed_model_sql = parsing_utils.remove_quotes(parsed_model_sql)
+                if self.dialect == "bigquery":
+                    parsed_model_sql = parsing_utils.remove_upper(parsed_model_sql)
+                qualified_expr, scope = prepare_scope(parsed_model_sql, schema=schema, dialect=self.dialect)
+
+                def normalize_column_name(name: str) -> str:
+                    name = name.strip('"').strip("'")
+                    name = re.sub(r"::\s*\w+$", "", name)
+                    if name.startswith("$"):
+                        name = name[1:]
+                        
+                    return name
+
+                # Initialize parents entry for this model
+                model_parents: dict = {}
+
+                columns = self._get_list_of_columns_for_a_dbt_node(model_node)
+
+                for column_name in columns:
+                    column_key = column_name.lower()
+                    # Snapshot special columns
+                    if model_info.get("resource_type") == "snapshot" and column_name in [
+                        "dbt_valid_from",
+                        "dbt_valid_to",
+                        "dbt_updated_at",
+                        "dbt_scd_id",
+                    ]:
+                        self.logger.debug(f"Skipping special snapshot column {column_name}")
+                        model_parents[column_key] = []
+                        continue
+
+                    model_parents[column_key] = []
+
+                    def append_parent(parent_columns, lineage_type, _model_parents=model_parents, _column_key=column_key):
+                        parent_model = parent_columns["dbt_node"]
+                        parent_col = parent_columns["column"].lower()
+                        if parent_model == model_node:
+                            return
+                        if parent_columns not in _model_parents[_column_key]:
+                            parent_columns["lineage_type"] = lineage_type
+                            _model_parents[_column_key].append(parent_columns)
+                        # Update children incrementally
+                        children.setdefault(parent_model, {}).setdefault(parent_col, []).append(
+                            {"column": _column_key, "dbt_node": model_node}
+                        )
+
+                    try:
+                        normalized_column = normalize_column_name(column_name)
+                        lineage_node = lineage(
+                            normalized_column,
+                            qualified_expr,
+                            schema=schema,
+                            dialect=self.dialect,
+                            scope=scope,
+                        )
+
+                        for n in lineage_node.walk():
+                            if n.source.key == "table":
+                                parent_columns = self.get_dbt_node_from_sqlglot_table_node(n, model_node)
+                                append_parent(parent_columns, lineage_node.lineage_type)
+
+                    except SqlglotError:
+                        # Fallback: try to parse as expression and extract columns
+                        try:
+                            parsed_sql = parsed_model_sql
+                            alias_expr_map = {}
+                            select_exprs = get_select_expressions(parsed_sql)
+                            for expr in select_exprs:
+                                alias = expr.alias_or_name
+                                if alias:
+                                    alias_expr_map[alias.lower()] = expr
+                            expr = alias_expr_map.get(normalize_column_name(column_name).lower())
+                            self.logger.debug(f"Available aliases in query: {list(alias_expr_map.keys())}")
+                            if expr:
+                                upstream_columns = extract_column_refs(expr)
+                                for col in upstream_columns:
+                                    try:
+                                        sub_node = lineage(
+                                            col.name,
+                                            qualified_expr,
+                                            schema=schema,
+                                            dialect=self.dialect,
+                                            scope=scope,
+                                        )
+                                        for n in sub_node.walk():
+                                            if n.source.key == "table":
+                                                parent_columns = self.get_dbt_node_from_sqlglot_table_node(n, model_node)
+                                                append_parent(parent_columns, sub_node.lineage_type)
+                                    except SqlglotError as e_inner:
+                                        self.logger.error(
+                                            f"Could not resolve lineage for '{col.name}' in alias '{column_name}': {e_inner}"
+                                        )
+                            else:
+                                self.logger.debug(f"No expression found for alias '{model_node}' '{column_name}'")
+                        except Exception as e2:
+                            self.logger.error(f"Fallback error on {column_name}: {e2}")
+                    except Exception as e:
+                        self.logger.error(
+                            f"Unexpected error processing model {model_node}, column {column_name}: {e}"
+                        )
+
+                if model_parents:
+                    parents[model_node] = model_parents
+
+                # Aggressively release large per-model structures
+                del qualified_expr, scope, parsed_model_sql, model_parents
+                if processed_count % 50 == 0:
+                    gc.collect()
+
+            except Exception as e:
+                error_count += 1
+                self.logger.error(f"Error processing model {model_node}: {str(e)}")
+                self.logger.debug("Continuing with next model...")
+                continue
+
+        if error_count > 0:
+            self.logger.info(
+                f"Completed with {error_count} errors out of {processed_count} models processed"
+            )
+
+        return {"lineage": {"parents": parents, "children": children}}
 
 class DBTNodeCatalog:
     def __init__(self, node_data):
