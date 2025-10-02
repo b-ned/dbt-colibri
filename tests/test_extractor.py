@@ -167,8 +167,8 @@ def test_schema_dict_generation(dbt_valid_test_data_dir):
     # Verify that table has column types
     assert len(extractor.schema_dict[first_db][first_schema][first_table]) > 0
 
-def test_table_to_node_mapping(dbt_valid_test_data_dir):
-    """Test the compact table-to-node mapping keyed by normalized relation_name."""
+def test_nodes_with_columns(dbt_valid_test_data_dir):
+    """Test the merged node mapping with columns, keyed by normalized relation_name."""
     if dbt_valid_test_data_dir is None:
         pytest.skip("No valid versioned test data present")
 
@@ -177,19 +177,29 @@ def test_table_to_node_mapping(dbt_valid_test_data_dir):
         catalog_path=f"{dbt_valid_test_data_dir}/catalog.json"
     )
 
-    table_to_node = extractor.table_to_node
+    nodes_with_columns = extractor.nodes_with_columns
 
     # Basic structure
-    assert table_to_node
-    assert isinstance(table_to_node, dict)
-    assert len(table_to_node) > 0
+    assert nodes_with_columns
+    assert isinstance(nodes_with_columns, dict)
+    assert len(nodes_with_columns) > 0
 
     # Verify keys are normalized relation names
-    for relation_name, unique_id in table_to_node.items():
+    for relation_name, node_info in nodes_with_columns.items():
         assert isinstance(relation_name, str)
         assert "." in relation_name  # should look like catalog.schema.table
-        assert isinstance(unique_id, str)
-        assert unique_id.startswith(("model.", "source.", "seed.", "snapshot."))
+
+        # Verify node_info structure
+        assert "unique_id" in node_info
+        assert node_info["unique_id"].startswith(
+            ("model.", "source.", "seed.", "snapshot.")
+        )
+
+        assert "database" in node_info
+        assert "schema" in node_info
+        assert "name" in node_info
+        assert "columns" in node_info
+        assert isinstance(node_info["columns"], dict)
 
 
 def test_get_list_of_columns(dbt_valid_test_data_dir, caplog):
