@@ -24,6 +24,7 @@ class DbtColibriReportGenerator:
         self.catalog = extractor.catalog
         self.logger = extractor.logger
         self.colibri_version = extractor.colibri_version
+        self.dialect = extractor.dialect
 
     def detect_model_type(self, node_id: str) -> str:
         """Detect model type based on naming conventions."""
@@ -252,13 +253,16 @@ class DbtColibriReportGenerator:
             ensure_node(node_id)
 
         # Build database -> schema -> models tree (store only node IDs)
-        # Build database -> schema -> models tree (store only node IDs)
         db_tree: Dict[str, Dict[str, List[str]]] = {}
         for node in nodes.values():
             # Only include non-test, non-macro nodes (already filtered above),
             # but keep both models and sources in the tree
-            database = node.get("database") or "unknown"
-            schema = node.get("schema") or "unknown"
+            if self.dialect == "snowflake":
+                database = (node.get("database") or "unknown").upper()
+                schema = (node.get("schema") or "unknown").upper()
+            else:
+                database = (node.get("database") or "unknown").lower()
+                schema = (node.get("schema") or "unknown").lower()
 
             db_tree.setdefault(database, {}).setdefault(schema, []).append(node["id"])
 
@@ -364,6 +368,9 @@ class DbtColibriReportGenerator:
         with open(json_path, "w", encoding="utf-8") as f:
             json.dump(lineage, f, indent=2)
         
+        # Delete lineage from memory to free up space before HTML injection
+        del lineage
+
         # Generate HTML with injected data
         html_template_path = Path(__file__).parent / "index.html"
         html_output_path = target_path / "index.html"
@@ -377,7 +384,7 @@ class DbtColibriReportGenerator:
 
         self.logger.debug(f"Injected data into HTML: {injected_html_path}")
         
-        return lineage
+        return None
 
 
 
@@ -387,47 +394,54 @@ def inject_data_into_html(
     output_html_path: Optional[str] = None,
 ) -> str:
     """
-    Inject JSON data into the compiled HTML file.
-    
-    Args:
-        json_data_path: Path to the JSON data file
-        template_html_path: Path to the compiled HTML template
-        output_html_path: Path for the output HTML file (optional)
-    
-    Returns:
-        Path to the generated HTML file
+    Inject JSON data into the compiled HTML file in a streaming fashion to avoid
+    loading or re-encoding the full JSON in memory.
     """
-    
-    # Read the JSON data
-    with open(json_data_path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-    
-    # Read the template HTML
+    # Read the template (expected to be much smaller than the data)
     with open(template_html_path, "r", encoding="utf-8") as f:
         template_html = f.read()
-    
-    # Convert data to JSON string and encode
-    json_string = json.dumps(data, separators=(',', ':'))
-    encoded_data = base64.b64encode(json_string.encode("utf-8")).decode("utf-8")
-    
-    # Create the script tag with the encoded data
-    script_tag = f'<script>window.colibriData = JSON.parse(atob("{encoded_data}"));</script>'
-    
-    # Insert the script tag before the closing </head> tag
-    if "</head>" in template_html:
-        compiled_html = template_html.replace("</head>", f"{script_tag}\n</head>")
+
+    # Find insertion point
+    head_close_idx = template_html.find("</head>")
+    if head_close_idx != -1:
+        insert_at = head_close_idx
     else:
-        # Fallback: insert at the beginning of the body
-        compiled_html = template_html.replace("<body>", f"<body>\n{script_tag}")
-    
+        body_open_idx = template_html.find("<body>")
+        insert_at = body_open_idx + len("<body>") if body_open_idx != -1 else 0
+
     # Determine output path
     if output_html_path is None:
         output_dir = Path(template_html_path).parent
         output_html_path = output_dir / "index_with_data.html"
-    
-    # Write the compiled HTML
-    with open(output_html_path, "w", encoding="utf-8") as f:
-        f.write(compiled_html)
-    
-    
+
+    # Write output HTML while streaming base64-encoded JSON bytes
+    with open(output_html_path, "w", encoding="utf-8") as out_f:
+        # Prefix (before insert point)
+        out_f.write(template_html[:insert_at])
+
+        # Script preamble
+        out_f.write('<script>window.colibriData = JSON.parse(atob("')
+
+        # Stream base64 of the JSON file with 3-byte boundary handling
+        with open(json_data_path, "rb") as jf:
+            leftover = b""
+            chunk_size = 1024 * 1024  # 1MB chunks
+            while True:
+                chunk = jf.read(chunk_size)
+                if not chunk:
+                    break
+                buf = leftover + chunk
+                to_encode_len = len(buf) - (len(buf) % 3)
+                if to_encode_len:
+                    out_f.write(base64.b64encode(buf[:to_encode_len]).decode("ascii"))
+                leftover = buf[to_encode_len:]
+            if leftover:
+                out_f.write(base64.b64encode(leftover).decode("ascii"))
+
+        # Script postamble
+        out_f.write('"));</script>')
+
+        # Suffix (after insert point)
+        out_f.write(template_html[insert_at:])
+
     return str(output_html_path)
