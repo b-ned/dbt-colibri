@@ -1,6 +1,6 @@
 [project]
 name = "dbt-colibri"
-version = "0.2.7b2"
+version = "0.2.7b3"
 description = "A column lineage parser and dashboarding tool"
 authors = [
     { name="bned" }
@@ -45,6 +45,11 @@ dev = [
     "build",
     "twine",
     "pre-commit",
+]
+
+performance-test = [
+    "matplotlib>=3.9.4",
+    "psutil>=7.1.0",
 ]
 
 [[tool.uv.index]]
