@@ -47,6 +47,11 @@ dev = [
     "pre-commit",
 ]
 
+performance-test = [
+    "matplotlib>=3.9.4",
+    "psutil>=7.1.0",
+]
+
 [[tool.uv.index]]
 name = "testpypi"
 url = "https://test.pypi.org/simple/"
