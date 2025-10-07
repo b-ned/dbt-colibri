@@ -132,7 +132,7 @@ class DbtColibriReportGenerator:
         # Extract lineage data from the extractor
         lineage_data = self.extractor.extract_project_lineage()
         parents_map = lineage_data["lineage"]["parents"]
-        # children_map = lineage_data["lineage"]["children"]
+        children_map = lineage_data["lineage"]["children"]
 
         # Build nodes dictionary (keyed by node_id for easy lookup)
         nodes: Dict[str, dict] = {}
@@ -343,8 +343,8 @@ class DbtColibriReportGenerator:
             "nodes": nodes,  # Dictionary keyed by node_id
             "lineage": {
                 "edges": edges,
-                # "parents": parents_map,
-                # "children": children_map
+                "parents": parents_map,
+                "children": children_map
             },
             "tree": {
                 "byDatabase": db_tree,
@@ -390,26 +390,46 @@ class DbtColibriReportGenerator:
         target_path = Path(output_dir)
         target_path.mkdir(parents=True, exist_ok=True)
         
-        # Save JSON data
+        # Save full JSON data (with parents and children)
         json_path = target_path / "colibri-manifest.json"
         with open(json_path, "w", encoding="utf-8") as f:
             json.dump(lineage, f, indent=2)
         
+        # Create a stripped version for HTML injection (without parents and children)
+        lineage_stripped = {
+            "metadata": lineage["metadata"],
+            "nodes": lineage["nodes"],
+            "lineage": {
+                "edges": lineage["lineage"]["edges"]
+                # Omit parents and children
+            },
+            "tree": lineage["tree"]
+        }
+        
+        # Save stripped version to a temporary file for HTML injection
+        json_path_stripped = target_path / "colibri-manifest-temp.json"
+        with open(json_path_stripped, "w", encoding="utf-8") as f:
+            json.dump(lineage_stripped, f, indent=2)
+        
         # Delete lineage from memory to free up space before HTML injection
         del lineage
+        del lineage_stripped
 
         # Generate HTML with injected data
         html_template_path = Path(__file__).parent / "index.html"
         html_output_path = target_path / "index.html"
         
-        # Inject data into HTML
+        # Inject stripped data into HTML
         injected_html_path = inject_data_into_html(
-            json_data_path=str(json_path),
+            json_data_path=str(json_path_stripped),
             template_html_path=str(html_template_path),
             output_html_path=str(html_output_path)
         )
 
         self.logger.debug(f"Injected data into HTML: {injected_html_path}")
+        
+        # Clean up the temporary stripped JSON file
+        json_path_stripped.unlink()
         
         return None
 
