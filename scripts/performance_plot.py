@@ -36,7 +36,16 @@ def load_memory_files(directory="output/performance", sampling_interval=0.1):
     for pkl_file in pkl_files:
         try:
             with open(pkl_file, "rb") as f:
-                memory_data = pickle.load(f)
+                data = pickle.load(f)
+            
+            # Handle both old format (list) and new format (dict)
+            if isinstance(data, dict):
+                memory_data = data.get('memory_over_time', [])
+                file_sizes = data.get('file_sizes', {})
+            else:
+                # Old format: just the memory list
+                memory_data = data
+                file_sizes = {}
                 
             # Create time axis
             time_axis = [i * sampling_interval for i in range(len(memory_data))]
@@ -51,7 +60,8 @@ def load_memory_files(directory="output/performance", sampling_interval=0.1):
                 'filename': pkl_file.name,
                 'peak': max(memory_data) if memory_data else 0,
                 'avg': sum(memory_data) / len(memory_data) if memory_data else 0,
-                'duration': time_axis[-1] if time_axis else 0
+                'duration': time_axis[-1] if time_axis else 0,
+                'file_sizes': file_sizes
             })
             
         except Exception as e:
@@ -125,6 +135,12 @@ def plot_memory_usage(datasets, output_file=None):
         print(f"  Duration: {data['duration']:.2f}s")
         print(f"  Peak Memory: {data['peak']:.2f} MB")
         print(f"  Average Memory: {data['avg']:.2f} MB")
+        
+        # Print file sizes if available
+        if data['file_sizes']:
+            print("  Generated files:")
+            for filename, size in data['file_sizes'].items():
+                print(f"    - {filename}: {size:.2f} MB")
     print("="*80 + "\n")
 
 
