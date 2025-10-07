@@ -70,6 +70,7 @@ colibri generate [OPTIONS]
 - `--catalog-path`: Path to dbt catalog.json (default: `target/catalog.json`)
 - `--output-dir`: Output directory (default: `dist/`)
 - `--help`: Show help message
+- `--light`: For very big dbt projects, excludes attributes like compiled SQL and returns smaller HTML file.
 
 ### Output Files
 

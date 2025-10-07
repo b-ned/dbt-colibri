@@ -18,13 +18,14 @@ class DbtColibriReportGenerator:
     - Report generation (DbtColibriReportGenerator)
     """
     
-    def __init__(self, extractor: DbtColumnLineageExtractor):
+    def __init__(self, extractor: DbtColumnLineageExtractor, light_mode: bool = False):
         self.extractor = extractor
         self.manifest = extractor.manifest
         self.catalog = extractor.catalog
         self.logger = extractor.logger
         self.colibri_version = extractor.colibri_version
         self.dialect = extractor.dialect
+        self.light_mode = light_mode
 
     def detect_model_type(self, node_id: str) -> str:
         """Detect model type based on naming conventions."""
@@ -324,7 +325,7 @@ class DbtColibriReportGenerator:
         sort_path_tree(path_tree)
 
         # Build the final structure
-        return {
+        result = {
             "metadata": {
                 "colibri_version": self.colibri_version,
                 "generated_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
@@ -346,6 +347,28 @@ class DbtColibriReportGenerator:
                 "byPath": path_tree
             }
         }
+
+        # Apply light mode filtering before returning
+        if self.light_mode:
+            self._apply_light_mode_filter(result)
+
+        return result
+    
+    def _apply_light_mode_filter(self, result: dict) -> None:
+        """
+        Apply light mode filtering to the result dictionary in-place.
+        Removes compiled_code from all nodes to reduce file size.
+        
+        This method can be extended to filter out additional fields if needed.
+        
+        Args:
+            result: The complete lineage result dictionary
+        """
+        nodes = result.get("nodes", {})
+        for node_id, node_data in nodes.items():
+            # Remove compiledCode field if it exists
+            if "compiledCode" in node_data:
+                del node_data["compiledCode"]
     
     def generate_report(self, output_dir: str = "dist") -> dict:
         """

@@ -53,8 +53,14 @@ def cli():
     default=False,
     help="Enable debug-level logging"
 )
+@click.option(
+    "--light",
+    is_flag=True,
+    default=False,
+    help="Enable light mode (excludes compiled_code from output for smaller file size)"
+)
 
-def generate_report(output_dir, manifest, catalog, debug):
+def generate_report(output_dir, manifest, catalog, debug, light):
     """Generate a dbt-colibri lineage report with both JSON and HTML output."""
     import logging
     from ..utils import log
@@ -91,7 +97,7 @@ def generate_report(output_dir, manifest, catalog, debug):
         )
 
         logger.info("Extracting lineage data...")
-        report_generator = DbtColibriReportGenerator(extractor)
+        report_generator = DbtColibriReportGenerator(extractor, light_mode=light)
 
         logger.info("Generating report...")
         report_generator.generate_report(output_dir=output_dir)
