@@ -565,7 +565,7 @@ class DbtColumnLineageExtractor:
         self.logger.info("Streaming lineage extraction (memory-optimized)...")
 
         parents: dict = {}
-        # children: dict = {}
+        children: dict = {}
 
         # Prepare model list respecting selection if provided
         all_models = (
@@ -644,16 +644,16 @@ class DbtColumnLineageExtractor:
 
                     def append_parent(parent_columns, lineage_type, _model_parents=model_parents, _column_key=column_key):
                         parent_model = parent_columns["dbt_node"]
-                        # parent_col = parent_columns["column"].lower()
+                        parent_col = parent_columns["column"].lower()
                         if parent_model == model_node:
                             return
                         if parent_columns not in _model_parents[_column_key]:
                             parent_columns["lineage_type"] = lineage_type
                             _model_parents[_column_key].append(parent_columns)
                         # Update children incrementally
-                        # children.setdefault(parent_model, {}).setdefault(parent_col, []).append(
-                        #     {"column": _column_key, "dbt_node": model_node}
-                        # )
+                        children.setdefault(parent_model, {}).setdefault(parent_col, []).append(
+                            {"column": _column_key, "dbt_node": model_node}
+                        )
 
                     try:
                         normalized_column = normalize_column_name(column_name)
@@ -729,7 +729,7 @@ class DbtColumnLineageExtractor:
                 f"Completed with {error_count} errors out of {processed_count} models processed"
             )
 
-        return {"lineage": {"parents": parents}}
+        return {"lineage": {"parents": parents, "children": children}}
 
 class DBTNodeCatalog:
     def __init__(self, node_data):
