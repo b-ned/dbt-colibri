@@ -132,11 +132,12 @@ class DbtColibriReportGenerator:
         # Extract lineage data from the extractor
         lineage_data = self.extractor.extract_project_lineage()
         parents_map = lineage_data["lineage"]["parents"]
-        children_map = lineage_data["lineage"]["children"]
+        # children_map = lineage_data["lineage"]["children"]
 
         # Build nodes dictionary (keyed by node_id for easy lookup)
         nodes: Dict[str, dict] = {}
         edges: List[dict] = []
+        edge_id_counter = 1
 
         def ensure_node(node_id: str) -> dict:
             """Ensure a node exists in the nodes dict, creating if necessary."""
@@ -173,13 +174,15 @@ class DbtColibriReportGenerator:
 
         def add_edge(src_id: str, src_col: str, tgt_id: str, tgt_col: str):
             """Add an edge between two columns."""
+            nonlocal edge_id_counter
             edges.append({
-                "id": f"{src_id}:{src_col}->{tgt_id}:{tgt_col}",
+                "id": edge_id_counter,
                 "source": src_id,
                 "target": tgt_id,
                 "sourceColumn": src_col,
                 "targetColumn": tgt_col,
             })
+            edge_id_counter += 1
 
         # Traverse all edges from parents_map
         def _normalize_col_name(col: str) -> str:
@@ -236,12 +239,13 @@ class DbtColibriReportGenerator:
                 ensure_node(node_id)
 
                 edges.append({
-                    "id": f"{dep_node_id}::->{node_id}::",
+                    "id": edge_id_counter,
                     "source": dep_node_id,
                     "target": node_id,
                     "sourceColumn": "",
                     "targetColumn": "",
                 })
+                edge_id_counter += 1
 
         # Build all nodes (even if disconnected)
         all_ids = {
@@ -339,8 +343,8 @@ class DbtColibriReportGenerator:
             "nodes": nodes,  # Dictionary keyed by node_id
             "lineage": {
                 "edges": edges,
-                "parents": parents_map,
-                "children": children_map
+                # "parents": parents_map,
+                # "children": children_map
             },
             "tree": {
                 "byDatabase": db_tree,
