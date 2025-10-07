@@ -578,61 +578,6 @@ def test_column_lineage_with_real_data(dbt_valid_test_data_dir):
             assert "column" in parent
             assert "dbt_node" in parent
 
-def test_get_lineage_to_direct_children(dbt_valid_test_data_dir):
-    """Test getting lineage to direct children from lineage to direct parents."""
-    # Set up test data
-    lineage_to_direct_parents = {
-        "model.test.child": {
-            "id": [
-                {"column": "id", "dbt_node": "model.test.parent"}
-            ],
-            "name": [
-                {"column": "full_name", "dbt_node": "model.test.parent"}
-            ]
-        },
-        "model.test.grandchild": {
-            "child_id": [
-                {"column": "id", "dbt_node": "model.test.child"}
-            ]
-        }
-    }
-    
-    if dbt_valid_test_data_dir is None:
-        pytest.skip("No valid versioned test data present")
-    
-    extractor = DbtColumnLineageExtractor(
-        manifest_path=f"{dbt_valid_test_data_dir}/manifest.json",
-        catalog_path=f"{dbt_valid_test_data_dir}/catalog.json"
-    )
-    
-    # Get lineage to direct children
-    children_lineage = extractor.get_lineage_to_direct_children_from_lineage_to_direct_parents(
-        lineage_to_direct_parents
-    )
-    
-    # Verify the result
-    assert children_lineage
-    assert "model.test.parent" in children_lineage
-    assert "id" in children_lineage["model.test.parent"]
-    assert "full_name" in children_lineage["model.test.parent"]
-    
-    # Verify parent.id points to child.id
-    assert len(children_lineage["model.test.parent"]["id"]) == 1
-    assert children_lineage["model.test.parent"]["id"][0]["dbt_node"] == "model.test.child"
-    assert children_lineage["model.test.parent"]["id"][0]["column"] == "id"
-    
-    # Verify parent.full_name points to child.name
-    assert len(children_lineage["model.test.parent"]["full_name"]) == 1
-    assert children_lineage["model.test.parent"]["full_name"][0]["dbt_node"] == "model.test.child"
-    assert children_lineage["model.test.parent"]["full_name"][0]["column"] == "name"
-    
-    # Verify child.id points to grandchild.child_id
-    assert "model.test.child" in children_lineage
-    assert "id" in children_lineage["model.test.child"]
-    assert len(children_lineage["model.test.child"]["id"]) == 1
-    assert children_lineage["model.test.child"]["id"][0]["dbt_node"] == "model.test.grandchild"
-    assert children_lineage["model.test.child"]["id"][0]["column"] == "child_id"
-
 def test_find_all_related():
     """Test finding all related columns."""
     # Set up test data

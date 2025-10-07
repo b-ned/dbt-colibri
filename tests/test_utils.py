@@ -107,10 +107,10 @@ def count_edges_with_double_colon(result: dict) -> dict:
         if node.get("nodeType") == "hardcoded"}
     
     # Count edges with :: (model-level edges)
-    model_level_edges = [edge for edge in edges if "::" in edge.get("id", "")]
+    model_level_edges = [edge for edge in edges if edge.get("sourceColumn") == ""]
     
     # Count edges without :: (column-level edges) 
-    column_level_edges = [edge for edge in edges if "::" not in edge.get("id", "")]
+    column_level_edges = [edge for edge in edges if edge.get("sourceColumn") != ""]
     
     return {
         "model_level_edges": len(model_level_edges),
