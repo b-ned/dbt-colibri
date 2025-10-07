@@ -466,29 +466,6 @@ class DbtColumnLineageExtractor:
                     self.logger.debug(f"No lineage found for {model_node} - {column}")
         return columns_lineage
 
-    def get_lineage_to_direct_children_from_lineage_to_direct_parents(
-        self, lineage_to_direct_parents
-    ):
-        children_lineage = {}
-
-        for child_model, columns in lineage_to_direct_parents.items():
-            child_model = child_model
-            for child_column, parents in columns.items():
-                child_column = child_column.lower()
-                for parent in parents:
-                    parent_model = parent["dbt_node"]
-                    parent_column = parent["column"].lower()
-
-                    if parent_model not in children_lineage:
-                        children_lineage[parent_model] = {}
-
-                    if parent_column not in children_lineage[parent_model]:
-                        children_lineage[parent_model][parent_column] = []
-
-                    children_lineage[parent_model][parent_column].append(
-                        {"column": child_column, "dbt_node": child_model}
-                    )
-        return children_lineage
 
     @staticmethod
     def find_all_related(lineage_map, model_node, column, visited=None):

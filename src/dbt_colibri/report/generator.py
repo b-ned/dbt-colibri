@@ -18,13 +18,14 @@ class DbtColibriReportGenerator:
     - Report generation (DbtColibriReportGenerator)
     """
     
-    def __init__(self, extractor: DbtColumnLineageExtractor):
+    def __init__(self, extractor: DbtColumnLineageExtractor, light_mode: bool = False):
         self.extractor = extractor
         self.manifest = extractor.manifest
         self.catalog = extractor.catalog
         self.logger = extractor.logger
         self.colibri_version = extractor.colibri_version
         self.dialect = extractor.dialect
+        self.light_mode = light_mode
 
     def detect_model_type(self, node_id: str) -> str:
         """Detect model type based on naming conventions."""
@@ -136,6 +137,7 @@ class DbtColibriReportGenerator:
         # Build nodes dictionary (keyed by node_id for easy lookup)
         nodes: Dict[str, dict] = {}
         edges: List[dict] = []
+        edge_id_counter = 1
 
         def ensure_node(node_id: str) -> dict:
             """Ensure a node exists in the nodes dict, creating if necessary."""
@@ -172,13 +174,15 @@ class DbtColibriReportGenerator:
 
         def add_edge(src_id: str, src_col: str, tgt_id: str, tgt_col: str):
             """Add an edge between two columns."""
+            nonlocal edge_id_counter
             edges.append({
-                "id": f"{src_id}:{src_col}->{tgt_id}:{tgt_col}",
+                "id": edge_id_counter,
                 "source": src_id,
                 "target": tgt_id,
                 "sourceColumn": src_col,
                 "targetColumn": tgt_col,
             })
+            edge_id_counter += 1
 
         # Traverse all edges from parents_map
         def _normalize_col_name(col: str) -> str:
@@ -235,12 +239,13 @@ class DbtColibriReportGenerator:
                 ensure_node(node_id)
 
                 edges.append({
-                    "id": f"{dep_node_id}::->{node_id}::",
+                    "id": edge_id_counter,
                     "source": dep_node_id,
                     "target": node_id,
                     "sourceColumn": "",
                     "targetColumn": "",
                 })
+                edge_id_counter += 1
 
         # Build all nodes (even if disconnected)
         all_ids = {
@@ -324,7 +329,7 @@ class DbtColibriReportGenerator:
         sort_path_tree(path_tree)
 
         # Build the final structure
-        return {
+        result = {
             "metadata": {
                 "colibri_version": self.colibri_version,
                 "generated_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
@@ -346,6 +351,28 @@ class DbtColibriReportGenerator:
                 "byPath": path_tree
             }
         }
+
+        # Apply light mode filtering before returning
+        if self.light_mode:
+            self._apply_light_mode_filter(result)
+
+        return result
+    
+    def _apply_light_mode_filter(self, result: dict) -> None:
+        """
+        Apply light mode filtering to the result dictionary in-place.
+        Removes compiled_code from all nodes to reduce file size.
+        
+        This method can be extended to filter out additional fields if needed.
+        
+        Args:
+            result: The complete lineage result dictionary
+        """
+        nodes = result.get("nodes", {})
+        for node_id, node_data in nodes.items():
+            # Remove compiledCode field if it exists
+            if "compiledCode" in node_data:
+                del node_data["compiledCode"]
     
     def generate_report(self, output_dir: str = "dist") -> dict:
         """
@@ -363,26 +390,46 @@ class DbtColibriReportGenerator:
         target_path = Path(output_dir)
         target_path.mkdir(parents=True, exist_ok=True)
         
-        # Save JSON data
+        # Save full JSON data (with parents and children)
         json_path = target_path / "colibri-manifest.json"
         with open(json_path, "w", encoding="utf-8") as f:
             json.dump(lineage, f, indent=2)
         
+        # Create a stripped version for HTML injection (without parents and children)
+        lineage_stripped = {
+            "metadata": lineage["metadata"],
+            "nodes": lineage["nodes"],
+            "lineage": {
+                "edges": lineage["lineage"]["edges"]
+                # Omit parents and children
+            },
+            "tree": lineage["tree"]
+        }
+        
+        # Save stripped version to a temporary file for HTML injection
+        json_path_stripped = target_path / "colibri-manifest-temp.json"
+        with open(json_path_stripped, "w", encoding="utf-8") as f:
+            json.dump(lineage_stripped, f, indent=2)
+        
         # Delete lineage from memory to free up space before HTML injection
         del lineage
+        del lineage_stripped
 
         # Generate HTML with injected data
         html_template_path = Path(__file__).parent / "index.html"
         html_output_path = target_path / "index.html"
         
-        # Inject data into HTML
+        # Inject stripped data into HTML
         injected_html_path = inject_data_into_html(
-            json_data_path=str(json_path),
+            json_data_path=str(json_path_stripped),
             template_html_path=str(html_template_path),
             output_html_path=str(html_output_path)
         )
 
         self.logger.debug(f"Injected data into HTML: {injected_html_path}")
+        
+        # Clean up the temporary stripped JSON file
+        json_path_stripped.unlink()
         
         return None
 

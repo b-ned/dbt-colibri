@@ -37,10 +37,14 @@ class MemoryMonitor:
         if self.monitor_thread:
             self.monitor_thread.join()
     
-    def save(self, output_path):
-        """Save memory data to a pickle file."""
+    def save(self, output_path, file_sizes=None):
+        """Save memory data and file sizes to a pickle file."""
+        data = {
+            'memory_over_time': self.memory_over_time,
+            'file_sizes': file_sizes or {}
+        }
         with open(output_path, "wb") as f:
-            pickle.dump(self.memory_over_time, f)
+            pickle.dump(data, f)
         
         # Calculate statistics
         if self.memory_over_time:
@@ -50,6 +54,12 @@ class MemoryMonitor:
             print(f"Peak memory usage: {peak_mem:.2f} MB")
             print(f"Average memory usage: {avg_mem:.2f} MB")
             print(f"Samples collected: {len(self.memory_over_time)}")
+            
+            # Print file sizes if available
+            if file_sizes:
+                print("\nGenerated file sizes:")
+                for filename, size in file_sizes.items():
+                    print(f"  {filename}: {size:.2f} MB")
 
 
 def main(input_folder="dev_data"):
@@ -92,6 +102,7 @@ def main(input_folder="dev_data"):
     monitor = MemoryMonitor(sampling_interval=0.1)
     monitor.start()
     
+    file_sizes = {}
     try:
         # Run the heavy function
         print("Starting report generation...")
@@ -99,10 +110,20 @@ def main(input_folder="dev_data"):
         report_generator.generate_report(output_dir="dev_output")
         elapsed_time = time.time() - start_time
         print(f"Report generation completed in {elapsed_time:.2f} seconds")
+        
+        # Get file sizes of generated files
+        colibri_manifest = Path("dev_output/colibri-manifest.json")
+        index_html = Path("dev_output/index.html")
+        
+        if colibri_manifest.exists():
+            file_sizes['colibri-manifest.json'] = colibri_manifest.stat().st_size / 1024 / 1024  # MB
+        if index_html.exists():
+            file_sizes['index.html'] = index_html.stat().st_size / 1024 / 1024  # MB
+            
     finally:
         # Ensure monitoring stops even if an error occurs
         monitor.stop()
-        monitor.save(output_file)
+        monitor.save(output_file, file_sizes=file_sizes)
 
 
 if __name__ == "__main__":
