@@ -142,8 +142,8 @@ dbt-colibri leverages:
 
 We welcome contributions! Raise an issue or request a feature, if you are open to contribute you can let us now in the issue.
 
-- **Issues**: [GitHub Issues](https://github.com/your-org/dbt-colibri/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/your-org/dbt-colibri/discussions)
+- **Issues**: [GitHub Issues](https://github.com/b-ned/dbt-colibri/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/b-ned/dbt-colibri/discussions)
 
 
 ### Development Setup
