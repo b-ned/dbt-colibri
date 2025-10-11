@@ -74,7 +74,7 @@ colibri generate [OPTIONS]
 
 ### Output Files
 
-- **`colibri-manifest.json`**: Lineage data
+- **`colibri-manifest.json`**: Lineage data (can be used with MCP server)
 - **`index.html`**: Interactive (standalone) visualization dashboard
 
 
@@ -91,6 +91,37 @@ your-dbt-project/
 ```
 
 ## Advanced Usage
+
+### MCP Server for AI Assistants
+
+dbt-colibri includes an MCP (Model Context Protocol) server that allows AI assistants like Claude and Cursor to directly query your dbt lineage data.
+
+**Quick Setup:**
+
+```bash
+# Install with MCP support
+pip install dbt-colibri[mcp]
+
+# Generate your lineage manifest
+colibri generate --output-dir dist
+
+# Configure MCP server
+colibri mcp config --manifest dist/colibri-manifest.json
+
+# Install for Claude Desktop or Cursor
+colibri mcp install --app claude
+# or
+colibri mcp install --app cursor
+```
+
+**Features:**
+- Query downstream/upstream model dependencies
+- Trace column-level lineage (with transitive support)
+- Search models and columns
+- Get model metadata and compiled SQL
+- Support for local and remote manifests (HTTP, S3, GCS)
+
+For detailed setup instructions, see [docs/MCP_SETUP.md](docs/MCP_SETUP.md).
 
 ### CI/CD Integration
 

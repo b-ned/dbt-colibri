@@ -37,6 +37,24 @@ where = ["src"]
 [tool.setuptools.package-data]
 "*" = ["*.html"]
 
+[project.optional-dependencies]
+mcp = [
+    "fastmcp>=0.2.0",
+]
+mcp-s3 = [
+    "fastmcp>=0.2.0",
+    "boto3>=1.34.0",
+]
+mcp-gcp = [
+    "fastmcp>=0.2.0",
+    "google-cloud-storage>=2.10.0",
+]
+mcp-all = [
+    "fastmcp>=0.2.0",
+    "boto3>=1.34.0",
+    "google-cloud-storage>=2.10.0",
+]
+
 [dependency-groups]
 dev = [
     "pytest>=8.3.5",

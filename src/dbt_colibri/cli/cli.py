@@ -111,5 +111,222 @@ def generate_report(output_dir, manifest, catalog, debug, light):
         sys.exit(1)
 
 
+@cli.group("mcp")
+def mcp_group():
+    """MCP (Model Context Protocol) server commands"""
+    pass
+
+
+@mcp_group.command("config")
+@click.option(
+    "--manifest",
+    type=str,
+    required=True,
+    help="Path or URL to colibri-manifest.json (local path, http://, https://, s3://, gs://)"
+)
+@click.option(
+    "--cache-dir",
+    type=str,
+    default=None,
+    help="Directory to cache remote manifests (default: ~/.cache/dbt-colibri)"
+)
+def mcp_config(manifest, cache_dir):
+    """Configure the MCP server with a manifest location"""
+    from ..mcp.config import MCPConfig
+    
+    try:
+        # Determine if path is remote
+        is_remote = MCPConfig.is_remote_path(manifest)
+        
+        # If local, check if file exists
+        if not is_remote and not os.path.exists(manifest):
+            click.echo(f"❌ Error: Manifest file not found at {manifest}")
+            sys.exit(1)
+        
+        # Create and save config
+        config = MCPConfig(
+            manifest_path=manifest,
+            is_remote=is_remote,
+            cache_dir=cache_dir
+        )
+        config.save()
+        
+        manifest_type = "remote" if is_remote else "local"
+        click.echo("✅ MCP configured successfully!")
+        click.echo(f"   Manifest type: {manifest_type}")
+        click.echo(f"   Manifest path: {manifest}")
+        if cache_dir:
+            click.echo(f"   Cache directory: {cache_dir}")
+        click.echo("\nNext steps:")
+        click.echo("  1. Run 'colibri mcp serve' to start the server")
+        click.echo("  2. Or run 'colibri mcp install' to generate config for Claude/Cursor")
+        
+    except Exception as e:
+        click.echo(f"❌ Error: {str(e)}")
+        sys.exit(1)
+
+
+@mcp_group.command("serve")
+def mcp_serve():
+    """Start the MCP server (for testing; use 'fastmcp run' in production)"""
+    try:
+        from ..mcp.main import mcp
+        mcp.run()
+    except ImportError as e:
+        if "fastmcp" in str(e):
+            click.echo("❌ Error: fastmcp is required to run the MCP server")
+            click.echo("   Install with: pip install fastmcp")
+        else:
+            click.echo(f"❌ Error: {str(e)}")
+        sys.exit(1)
+    except RuntimeError as e:
+        click.echo(f"❌ Error: {str(e)}")
+        sys.exit(1)
+    except Exception as e:
+        click.echo(f"❌ Error: {str(e)}")
+        sys.exit(1)
+
+
+@mcp_group.command("install")
+@click.option(
+    "--app",
+    type=click.Choice(['claude', 'cursor'], case_sensitive=False),
+    required=True,
+    help="Application to install MCP config for"
+)
+@click.option(
+    "--name",
+    type=str,
+    default="dbt-colibri",
+    help="Name for the MCP server (default: dbt-colibri)"
+)
+@click.option(
+    "--python",
+    type=str,
+    default=None,
+    help="Python version to use (e.g., 3.12)"
+)
+def mcp_install(app, name, python):
+    """Install MCP server configuration for Claude Desktop or Cursor"""
+    import subprocess
+    from ..mcp.config import MCPConfig
+    
+    try:
+        # Check if MCP is configured
+        config = MCPConfig.load()
+        if not config:
+            click.echo("❌ Error: MCP not configured yet")
+            click.echo("   Run 'colibri mcp config --manifest <path>' first")
+            sys.exit(1)
+        
+        # Check if fastmcp is available
+        import shutil
+        if not shutil.which("fastmcp"):
+            click.echo("❌ Error: fastmcp is not installed or not in PATH")
+            click.echo("   Install with: pip install fastmcp")
+            sys.exit(1)
+        
+        # Build fastmcp install command
+        cmd = [
+            "fastmcp",
+            "install",
+            app.lower(),
+            "dbt_colibri.mcp.main:mcp",
+            "--name",
+            name
+        ]
+        
+        # Add python version if specified
+        if python:
+            cmd.extend(["--python", python])
+        
+        # Verify module can be imported
+        try:
+            from ..mcp.main import mcp as mcp_app
+            click.echo(f"✅ MCP module found: {mcp_app.name}")
+        except Exception as e:
+            click.echo(f"❌ Error: Cannot import MCP module: {e}")
+            sys.exit(1)
+        
+        # Run fastmcp install
+        click.echo(f"\nInstalling MCP server for {app.title()}...")
+        click.echo(f"Running: {' '.join(cmd)}\n")
+        
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        
+        if result.returncode == 0:
+            click.echo(f"✅ MCP server '{name}' installed for {app.title()}")
+            if result.stdout:
+                click.echo(result.stdout)
+            click.echo(f"\nRestart {app.title()} to use the MCP server.")
+        else:
+            click.echo(f"❌ Installation failed (exit code {result.returncode})")
+            if result.stderr:
+                click.echo(f"\nError output:\n{result.stderr}")
+            if result.stdout:
+                click.echo(f"\nStandard output:\n{result.stdout}")
+            click.echo("\nTry running the command manually to see full error:")
+            click.echo(f"  {' '.join(cmd)}")
+            sys.exit(1)
+        
+    except Exception as e:
+        click.echo(f"❌ Error: {str(e)}")
+        sys.exit(1)
+
+
+@mcp_group.command("status")
+def mcp_status():
+    """Show current MCP configuration status"""
+    from ..mcp.config import MCPConfig
+    
+    config = MCPConfig.load()
+    if not config:
+        click.echo("❌ MCP not configured")
+        click.echo("   Run 'colibri mcp config --manifest <path>' to configure")
+        sys.exit(1)
+    
+    click.echo("✅ MCP Configuration:")
+    click.echo(f"   Manifest path: {config.manifest_path}")
+    click.echo(f"   Type: {'remote' if config.is_remote else 'local'}")
+    if config.cache_dir:
+        click.echo(f"   Cache directory: {config.cache_dir}")
+    
+    # Try to load the manifest to verify it works
+    try:
+        manifest_path = config.get_manifest_path()
+        if os.path.exists(manifest_path):
+            click.echo("   Status: ✅ Manifest accessible")
+        else:
+            click.echo("   Status: ❌ Manifest not found")
+    except Exception as e:
+        click.echo(f"   Status: ❌ Error: {str(e)}")
+
+
+@mcp_group.command("clear")
+def mcp_clear():
+    """Clear MCP configuration and cache"""
+    from ..mcp.config import MCPConfig
+    from ..mcp.remote import clear_cache
+    
+    try:
+        config = MCPConfig.load()
+        
+        # Clear cache if config exists
+        if config and config.cache_dir:
+            clear_cache(config.cache_dir)
+            click.echo("✅ Cache cleared")
+        else:
+            clear_cache()
+            click.echo("✅ Cache cleared")
+        
+        # Delete config
+        MCPConfig.delete()
+        click.echo("✅ Configuration cleared")
+        
+    except Exception as e:
+        click.echo(f"❌ Error: {str(e)}")
+        sys.exit(1)
+
+
 if __name__ == "__main__":
     cli()
