@@ -190,7 +190,7 @@ def mcp_serve():
 @mcp_group.command("install")
 @click.option(
     "--app",
-    type=click.Choice(['claude', 'cursor'], case_sensitive=False),
+    type=click.Choice(['claude-code', 'cursor'], case_sensitive=False),
     required=True,
     help="Application to install MCP config for"
 )
