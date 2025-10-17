@@ -7,13 +7,12 @@ authors = [
 ]
 license = { text = "MIT" }
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
     "click>=8.1.7",
     "sqlglot[rs]>=26.33.0",
 ]
 classifiers = [
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -22,6 +21,7 @@ classifiers = [
 
 [project.scripts]
 colibri = "dbt_colibri.cli.cli:cli"
+colibri-mcp = "dbt_colibri.mcp.main:run_server"
 
 [build-system]
 requires = ["setuptools", "wheel"]
@@ -63,6 +63,7 @@ dev = [
     "build",
     "twine",
     "pre-commit",
+    "fastmcp"
 ]
 
 performance-test = [

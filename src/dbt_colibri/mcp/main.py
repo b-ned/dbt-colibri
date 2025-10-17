@@ -5,15 +5,10 @@ This module provides the FastMCP application object for the MCP protocol.
 To run: fastmcp run dbt_colibri.mcp.main:mcp
 """
 
-try:
-    from fastmcp import FastMCP
-except ImportError:
-    raise ImportError(
-        "fastmcp is required for MCP server. Install with: pip install fastmcp"
-    )
+from fastmcp import FastMCP
 
-from .lineage_index import DbtLineageIndex
-from .config import MCPConfig
+from dbt_colibri.mcp.lineage_index import DbtLineageIndex
+from dbt_colibri.mcp.config import MCPConfig
 from typing import Optional
 
 # Create FastMCP instance
@@ -543,3 +538,8 @@ def get_project_summary() -> dict:
         "node_counts": node_counts,
         "model_type_counts": model_type_counts
     }
+
+
+def run_server():
+    """Run the MCP server (for use as script entry point)"""
+    mcp.run(transport='stdio')
