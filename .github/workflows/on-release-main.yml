@@ -16,9 +16,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Export tag (e.g. v1.2.3 → 1.2.3)
+      - name: Determine version
         id: vars
-        run: echo "tag=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            echo "tag=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          elif [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            # Remove leading "v" from tag
+            echo "tag=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          else
+            echo "Error: No version provided and GITHUB_REF is not a tag: $GITHUB_REF"
+            exit 1
+          fi
 
       - name: Install uv
         run: pip install uv
