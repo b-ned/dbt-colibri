@@ -3,7 +3,12 @@ name: release-main
 on:
   release:
     types: [published]
-
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Optional version to publish (overrides release tag)'
+        required: false
+        default: ''
 jobs:
 
   set-version:
