@@ -122,6 +122,7 @@ Gitlab has similar functionality. Other options are writing the file to a bucket
    - Postgres
    - Databricks (**limited to SQL models**)
    - Athena
+   - Trino
 
 ### dbt Compatibility
 
