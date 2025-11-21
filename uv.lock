@@ -475,7 +475,7 @@ wheels = [
 
 [[package]]
 name = "dbt-colibri"
-version = "0.2.8b3"
+version = "0.2.8b4"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
