@@ -230,7 +230,7 @@ class DbtColibriReportGenerator:
 
         # Traverse all depends_on nodes to add model-level relationships
         for node_id, node_data in self.manifest.get("nodes", {}).items():
-            if node_data.get("resource_type") in {"test", "macro"}:
+            if node_data.get("resource_type") in {"test", "macro", "operation"}:
                 continue  # Skip test and macro nodes
             
             for dep_node_id in node_data.get("depends_on", {}).get("nodes", []):
@@ -251,7 +251,7 @@ class DbtColibriReportGenerator:
         all_ids = {
             node_id
             for node_id, data in self.manifest.get("nodes", {}).items()
-            if data.get("resource_type") not in {"test", "macro"}
+            if data.get("resource_type") not in {"test", "macro", "operation"}
         }.union({source_id for source_id in self.manifest.get("sources", {}).keys()})
 
         for node_id in all_ids:
@@ -291,6 +291,33 @@ class DbtColibriReportGenerator:
         path_tree: Dict[str, dict] = {}
         for node in nodes.values():
             node_path = node.get("path")
+
+            # collect all sources under a top-level "sources" folder ---
+            if node.get("nodeType") == "source":
+                source_name = node.get("schema", "unknown_schema")
+                # source_table_name = node.get("name", "unknown_table")
+                
+                # Strip "models\\" prefix and normalize path
+                node_path_str = str(node_path)
+                if node_path_str.startswith("models\\"):
+                    node_path_str = node_path_str[7:]  # Remove "models\\" (7 characters)
+                
+                # Split path into segments (excluding the filename)
+                parts = [p for p in node_path_str.replace("\\", "/").split("/") if p]
+                
+                # Build the path tree: sources -> path segments -> source_name -> source_table_name
+                cursor = path_tree.setdefault("sources", {})
+                
+                # Add path segments (excluding the last one which is the filename)
+                for segment in parts[:-1]:
+                    cursor = cursor.setdefault(segment, {})
+                
+                # Add source schema and table name
+                cursor = cursor.setdefault(source_name, {})
+                # cursor = cursor.setdefault(source_table_name, {})
+                cursor.setdefault("__items__", []).append(node["id"])
+                continue
+            
             if not node_path:
                 # Put items without path under a special bucket
                 path_tree.setdefault("__no_path__", {}).setdefault("__items__", []).append(node["id"])
@@ -328,6 +355,8 @@ class DbtColibriReportGenerator:
 
         sort_path_tree(path_tree)
 
+        project_name = self.manifest.get("metadata", {}).get("project_name", "project")
+
         # Build the final structure
         result = {
             "metadata": {
@@ -337,7 +366,7 @@ class DbtColibriReportGenerator:
                 "dbt_version": self.manifest.get("metadata", {}).get("dbt_version"),
                 "dbt_schema_version": self.manifest.get("metadata", {}).get("dbt_schema_version"),
                 "dbt_invocation_id": self.manifest.get("metadata", {}).get("invocation_id"),
-                "dbt_project_name": self.manifest.get("metadata", {}).get("project_name"),
+                "dbt_project_name": project_name,
                 "dbt_project_id": self.manifest.get("metadata", {}).get("project_id"),
             },
             "nodes": nodes,  # Dictionary keyed by node_id
@@ -348,7 +377,7 @@ class DbtColibriReportGenerator:
             },
             "tree": {
                 "byDatabase": db_tree,
-                "byPath": path_tree
+                "byPath": {project_name: path_tree}
             }
         }
 
