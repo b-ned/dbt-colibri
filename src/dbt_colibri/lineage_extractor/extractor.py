@@ -102,7 +102,7 @@ class DbtColumnLineageExtractor:
         Raises:
             ValueError: If adapter_type is not found or not supported
         """
-        SUPPORTED_ADAPTERS = {'snowflake', 'bigquery', 'redshift', 'duckdb', 'postgres', 'databricks', 'athena', 'trino', 'clickhouse'}
+        SUPPORTED_ADAPTERS = {'snowflake', 'bigquery', 'redshift', 'duckdb', 'postgres', 'databricks', 'athena', 'trino', 'sqlserver', 'clickhouse'}
         
         # Get adapter_type from manifest metadata
         adapter_type = self.manifest.get("metadata", {}).get("adapter_type")
@@ -120,6 +120,10 @@ class DbtColumnLineageExtractor:
             )
         
         self.logger.info(f"Detected adapter type: {adapter_type}")
+        if adapter_type == "sqlserver":
+            # Adapter type != Dialect Name for all adapters.
+            return "tsql"
+        
         return adapter_type
 
     def build_nodes_with_columns(self):
