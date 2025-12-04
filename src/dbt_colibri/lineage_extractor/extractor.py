@@ -401,6 +401,9 @@ class DbtColumnLineageExtractor:
             node.source.name.lower(),  # just table name: customers_hardcoded
         ]
 
+        # Remove duplicates while preserving order
+        table_variations = list(dict.fromkeys(table_variations))
+
         for key, data in self.nodes_with_columns.items():
             if any(key.lower() == variation.lower() for variation in table_variations):
                 dbt_node = data["unique_id"]
@@ -409,9 +412,6 @@ class DbtColumnLineageExtractor:
         else:
             # Check if the table is hardcoded in raw code.
             raw_code = self.manifest["nodes"][model_node]["raw_code"].lower()
-
-            # Remove duplicates while preserving order
-            table_variations = list(dict.fromkeys(table_variations))
 
             found_hardcoded = False
             for variation in table_variations:
