@@ -389,23 +389,26 @@ class DbtColumnLineageExtractor:
             raise ValueError(f"Node source is not a table, but {node.source.key}")
         column_name = node.name.split(".")[-1].lower()
         table_name = f"{node.source.catalog}.{node.source.db}.{node.source.name}"
+
+        if table_name == "..":
+            self.logger.warning(f"Table name for node {model_node} is incomplete: {table_name}")
         
+        # Try different variations of the table name
+        table_variations = [
+            table_name,  # full: .public.customers_hardcoded or test_db.public.customers_hardcoded
+            table_name.lstrip("."),  # without leading dot: public.customers_hardcoded
+            f"{node.source.db}.{node.source.name}".lower(),  # db.table: public.customers_hardcoded
+            node.source.name.lower(),  # just table name: customers_hardcoded
+        ]
+
         for key, data in self.nodes_with_columns.items():
-            if key.lower() == table_name.lower():
+            if any(key.lower() == variation.lower() for variation in table_variations):
                 dbt_node = data["unique_id"]
                 break
         
         else:
             # Check if the table is hardcoded in raw code.
             raw_code = self.manifest["nodes"][model_node]["raw_code"].lower()
-
-            # Try different variations of the table name
-            table_variations = [
-                table_name,  # full: .public.customers_hardcoded or test_db.public.customers_hardcoded
-                table_name.lstrip("."),  # without leading dot: public.customers_hardcoded
-                f"{node.source.db}.{node.source.name}".lower(),  # db.table: public.customers_hardcoded
-                node.source.name.lower(),  # just table name: customers_hardcoded
-            ]
 
             # Remove duplicates while preserving order
             table_variations = list(dict.fromkeys(table_variations))
@@ -418,7 +421,7 @@ class DbtColumnLineageExtractor:
                     break
 
             if not found_hardcoded:
-                self.logger.warning(f"Table {table_name} not found in node mapping")
+                self.logger.warning(f"Table {table_name} for model node {model_node} not found in node mapping")
                 dbt_node = f"_NOT_FOUND___{table_name.lower()}"
             # raise ValueError(f"Table {table_name} not found in node mapping")
 
