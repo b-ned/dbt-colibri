@@ -699,3 +699,99 @@ def test_python_model_handling():
                 assert lineage_map == {}
 
 
+# Minimal mocks to mimic the sqlglot node shape expected by the method
+class MockSource:
+    def __init__(self, catalog, db, name, key="table"):
+        self.catalog = catalog
+        self.db = db
+        self.name = name
+        self.key = key
+
+class MockSqlglotNode:
+    def __init__(self, source, full_name_for_column):
+        self.source = source
+        # get_dbt_node_from_sqlglot_table_node uses node.name.split(".")[-1]
+        self.name = full_name_for_column
+
+
+def make_extractor(manifest_nodes=None, nodes_with_columns=None):
+    """Create an extractor-like object without running __init__ (avoids file IO)."""
+    extractor = object.__new__(DbtColumnLineageExtractor)
+    extractor.logger = logging.getLogger("colibri_test")
+    # manifest should be a dict with "nodes" key (as the real class expects)
+    extractor.manifest = {"nodes": manifest_nodes or {}}
+    extractor.nodes_with_columns = nodes_with_columns or {}
+    extractor.dialect = 'clickhouse'  # Set dialect to clickhouse for the test
+    return extractor
+
+
+def test_clickhouse_leading_dot_table_matches():
+    """
+    Simulate ClickHouse where only db and table are used (no catalog),
+    """
+    model_node = "model.jaffle_shop.products"
+    
+    # Real manifest structure from example
+    manifest_nodes = {
+        model_node: {
+            "database": "",
+            "schema": "jaffle_shop",
+            "name": "products",
+            "resource_type": "model",
+            "unique_id": "model.jaffle_shop.products",
+            "alias": "products",
+            "relation_name": "`jaffle_shop`.`products`",
+            "raw_code": "with\n\nproducts as (\n\n    select * from {{ ref('stg_products') }}\n\n)\n\nselect * from products",
+            "compiled_code": "with\n\nproducts as (\n\n    select * from `jaffle_shop`.`stg_products`\n\n)\n\nselect * from products",
+            "refs": [
+                {
+                    "name": "stg_products",
+                    "package": None,
+                    "version": None
+                }
+            ],
+            "depends_on": {
+                "nodes": ["model.jaffle_shop.stg_products"]
+            }
+        }
+    }
+    
+    # Real nodes_with_columns structure from your example
+    nodes_with_columns = {
+        "jaffle_shop.stg_products": {
+            "unique_id": "model.jaffle_shop.stg_products",
+            "database": "",
+            "schema": "jaffle_shop",
+            "name": "stg_products",
+            "resource_type": "model",
+            "columns": {
+                "product_id": {
+                    "type": "String",
+                    "index": 1,
+                    "name": "product_id",
+                    "comment": None
+                },
+                "is_drink_item": {
+                    "type": "UInt8",
+                    "index": 7,
+                    "name": "is_drink_item",
+                    "comment": None
+                }
+            }
+        }
+    }
+        
+    extractor = make_extractor(manifest_nodes=manifest_nodes, nodes_with_columns=nodes_with_columns)
+
+    # Simulate sqlglot table node for ClickHouse with empty catalog
+    src = MockSource(catalog="", db="jaffle_shop", name="stg_products")
+    node = MockSqlglotNode(src, "stg_products.product_id")
+
+    result = extractor.get_dbt_node_from_sqlglot_table_node(node, model_node=model_node)
+
+    # Should find the table in nodes_with_columns mapping
+    assert result["column"] == "product_id"
+    assert result["dbt_node"] == "model.jaffle_shop.stg_products"
+    assert not result["dbt_node"].startswith("_HARDCODED_REF___")
+    assert not result["dbt_node"].startswith("_NOT_FOUND___")
+
