@@ -339,6 +339,29 @@ def to_node(
                 visited=visited,
             )
         else:
+            if source and isinstance(source, exp.Table):
+                pivot = source.find(exp.Pivot)
+                if pivot:
+                    pivot_source_name = None
+                    if hasattr(source, 'this') and hasattr(source.this, 'alias_or_name'):
+                        pivot_source_name = source.this.alias_or_name
+                    
+                    if pivot_source_name:
+                        pivot_source_scope = scope.sources.get(pivot_source_name)
+                        if isinstance(pivot_source_scope, Scope):
+                            to_node(
+                                c.name,
+                                scope=pivot_source_scope,
+                                dialect=dialect,
+                                scope_name=pivot_source_name,
+                                upstream=node,
+                                source_name=source_name,
+                                reference_node_name=reference_node_name,
+                                trim_selects=trim_selects,
+                                visited=visited,
+                            )
+                            continue
+            
             source = source or exp.Placeholder()
             node.downstream.append(
                 Node(name=c.sql(comments=False), source=source, expression=source)

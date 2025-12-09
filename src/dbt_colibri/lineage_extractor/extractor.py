@@ -391,6 +391,10 @@ class DbtColumnLineageExtractor:
     def get_dbt_node_from_sqlglot_table_node(self, node, model_node):
         if node.source.key != "table":
             raise ValueError(f"Node source is not a table, but {node.source.key}")
+        
+        if not node.source.catalog and not node.source.db:
+            return None
+            
         column_name = node.name.split(".")[-1].lower()
         table_name = f"{node.source.catalog}.{node.source.db}.{node.source.name}"
         
@@ -459,6 +463,8 @@ class DbtColumnLineageExtractor:
                 for n in node.walk():
                     if n.source.key == "table":
                         parent_columns = self.get_dbt_node_from_sqlglot_table_node(n, model_node)
+                        if not parent_columns:
+                            continue
                         parent_columns["lineage_type"] = node.lineage_type
                         if (
                             parent_columns["dbt_node"] != model_node
@@ -672,7 +678,8 @@ class DbtColumnLineageExtractor:
                         for n in lineage_node.walk():
                             if n.source.key == "table":
                                 parent_columns = self.get_dbt_node_from_sqlglot_table_node(n, model_node)
-                                append_parent(parent_columns, lineage_node.lineage_type)
+                                if parent_columns:
+                                    append_parent(parent_columns, lineage_node.lineage_type)
 
                     except SqlglotError:
                         # Fallback: try to parse as expression and extract columns
@@ -700,7 +707,8 @@ class DbtColumnLineageExtractor:
                                         for n in sub_node.walk():
                                             if n.source.key == "table":
                                                 parent_columns = self.get_dbt_node_from_sqlglot_table_node(n, model_node)
-                                                append_parent(parent_columns, sub_node.lineage_type)
+                                                if parent_columns:
+                                                    append_parent(parent_columns, sub_node.lineage_type)
                                     except SqlglotError as e_inner:
                                         self.logger.error(
                                             f"Could not resolve lineage for '{col.name}' in alias '{column_name}': {e_inner}"
