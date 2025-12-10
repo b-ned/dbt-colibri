@@ -102,7 +102,7 @@ class DbtColumnLineageExtractor:
         Raises:
             ValueError: If adapter_type is not found or not supported
         """
-        SUPPORTED_ADAPTERS = {'snowflake', 'bigquery', 'redshift', 'duckdb', 'postgres', 'databricks', 'athena', 'trino', 'sqlserver'}
+        SUPPORTED_ADAPTERS = {'snowflake', 'bigquery', 'redshift', 'duckdb', 'postgres', 'databricks', 'athena', 'trino', 'sqlserver', 'clickhouse'}
         
         # Get adapter_type from manifest metadata
         adapter_type = self.manifest.get("metadata", {}).get("adapter_type")
@@ -392,7 +392,11 @@ class DbtColumnLineageExtractor:
         if node.source.key != "table":
             raise ValueError(f"Node source is not a table, but {node.source.key}")
         column_name = node.name.split(".")[-1].lower()
-        table_name = f"{node.source.catalog}.{node.source.db}.{node.source.name}"
+        
+        if self.dialect == 'clickhouse':
+            table_name = f"{node.source.db}.{node.source.name}"
+        else:
+            table_name = f"{node.source.catalog}.{node.source.db}.{node.source.name}"
         
         for key, data in self.nodes_with_columns.items():
             if key.lower() == table_name.lower():

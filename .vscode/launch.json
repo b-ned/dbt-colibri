@@ -30,6 +30,9 @@
                 "-vv", 
                 "-s" // run only this test, adjust as needed
             ],
+            "env": {
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1"
+            },
             "justMyCode": true,
             "console": "integratedTerminal"
         },
@@ -46,6 +49,22 @@
                 "dev_data/no_materialization/catalog.json",
                 "--output-dir",
                 "output/edge_case"
+            ],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Debug: ClickHouse Dialect",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "src.dbt_colibri.cli.cli",
+            "args": [
+                "generate",
+                "--manifest",
+                "tests/test_data/clickhouse/manifest.json",
+                "--catalog",
+                "tests/test_data/clickhouse/catalog.json",
+                "--output-dir",
+                "output/clickhouse"
             ],
             "console": "integratedTerminal"
         },
