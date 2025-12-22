@@ -795,3 +795,83 @@ def test_clickhouse_leading_dot_table_matches():
     assert not result["dbt_node"].startswith("_HARDCODED_REF___")
     assert not result["dbt_node"].startswith("_NOT_FOUND___")
 
+
+def test_nodes_with_null_relation_name_are_skipped():
+    """
+    Test that nodes with null relation_name (e.g., dbt operations like on-run-end hooks)
+    are skipped and don't cause errors during build_nodes_with_columns.
+
+    This prevents the error: "expected string or bytes-like object" when
+    normalize_table_relation_name receives None instead of a string.
+    """
+    # Create a manifest with a node that has null relation_name (like dbt operations)
+    manifest = {
+        "metadata": {
+            "adapter_type": "snowflake"
+        },
+        "nodes": {
+            "operation.test_project.test-on-run-end-0": {
+                "path": "hooks/on-run-end.sql",
+                "resource_type": "model",  # Operations can be misclassified as models
+                "compiled_code": None,
+                "depends_on": {"nodes": []},
+                "database": "test_db",
+                "schema": "test_schema",
+                "name": "test-on-run-end-0",
+                "columns": {},
+                "relation_name": None,  # Operations have null relation_name
+                "config": {"materialized": "view"}
+            },
+            "model.test_project.valid_model": {
+                "path": "models/valid_model.sql",
+                "resource_type": "model",
+                "compiled_code": "SELECT 1 as id",
+                "depends_on": {"nodes": []},
+                "database": "test_db",
+                "schema": "test_schema",
+                "name": "valid_model",
+                "columns": {},
+                "relation_name": "test_db.test_schema.valid_model",
+                "config": {"materialized": "table"}
+            }
+        },
+        "sources": {},
+        "parent_map": {},
+        "child_map": {}
+    }
+
+    catalog = {
+        "nodes": {
+            "model.test_project.valid_model": {
+                "unique_id": "model.test_project.valid_model",
+                "metadata": {
+                    "database": "test_db",
+                    "schema": "test_schema",
+                    "name": "valid_model",
+                    "type": "table"
+                },
+                "columns": {
+                    "id": {"type": "INTEGER", "name": "id", "index": 1}
+                }
+            }
+        },
+        "sources": {}
+    }
+
+    with patch('dbt_colibri.utils.json_utils.read_json') as mock_read_json:
+        mock_read_json.side_effect = [manifest, catalog]
+
+        # This should NOT raise "expected string or bytes-like object" error
+        extractor = DbtColumnLineageExtractor(
+            manifest_path="dummy_path",
+            catalog_path="dummy_path"
+        )
+
+        # Verify the null relation_name node was skipped
+        nodes_with_columns = extractor.nodes_with_columns
+
+        # The valid model should be present
+        assert any("valid_model" in key for key in nodes_with_columns.keys())
+
+        # The operation with null relation_name should NOT be present
+        assert not any("on-run-end" in key for key in nodes_with_columns.keys())

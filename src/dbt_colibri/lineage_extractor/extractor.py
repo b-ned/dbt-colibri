@@ -136,6 +136,9 @@ class DbtColumnLineageExtractor:
         for node_id, node in {**self.manifest["nodes"], **self.manifest["sources"]}.items():
             if node.get("resource_type") not in ["model", "source", "seed", "snapshot"]:
                 continue
+            # Skip nodes without relation_name (e.g., operations) unless they're ephemeral
+            if node.get('config', {}).get('materialized') != 'ephemeral' and not node.get("relation_name"):
+                continue
             if node['config'].get('materialized') == 'ephemeral':
                 relation_name = node['database'] + '.' + node['schema'] + '.' + node.get('alias', node.get('name'))
             else:
