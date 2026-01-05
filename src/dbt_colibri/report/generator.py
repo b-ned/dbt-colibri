@@ -58,8 +58,9 @@ class DbtColibriReportGenerator:
     def build_manifest_node_data(self, node_id: str) -> dict:
         """Build node metadata from manifest and catalog data."""
         node_data = (
-            self.manifest.get("nodes", {}).get(node_id) or 
-            self.manifest.get("sources", {}).get(node_id)
+            self.manifest.get("nodes", {}).get(node_id) or
+            self.manifest.get("sources", {}).get(node_id) or
+            self.manifest.get("exposures", {}).get(node_id)
         )
         catalog_data = (
             self.catalog.get("nodes", {}).get(node_id) or 
@@ -107,13 +108,10 @@ class DbtColibriReportGenerator:
                         entry["description"] = manifest_columns[col_lc]["description"]
                 columns[col_lc] = entry
 
-        if node_data:
-            node_type = node_data.get("resource_type", "unknown")
-            materialized = node_data.get("config", {}).get("materialized", "unknown")
-        else:
-            node_type = materialized = "unknown"
+        node_type = node_data.get("resource_type", "unknown")
+        materialized = node_data.get("config", {}).get("materialized", "unknown")
 
-        return {
+        result = {
             "nodeType": node_type,
             "materialized": materialized,
             "rawCode": node_data.get("raw_code") or node_data.get("raw_sql"),
@@ -126,6 +124,26 @@ class DbtColibriReportGenerator:
             "columns": columns,
             "database": node_data.get("database")
         }
+
+        # Add exposure_metadata for exposures
+        if node_type == "exposure":
+            result["exposure_metadata"] = {
+                "type": node_data.get("type"),
+                "owner": node_data.get("owner"),
+                "label": node_data.get("label"),
+                "maturity": node_data.get("maturity"),
+                "url": node_data.get("url"),
+                "package_name": node_data.get("package_name"),
+                "fqn": node_data.get("fqn"),
+                "meta": node_data.get("meta"),
+                "tags": node_data.get("tags"),
+                "config": node_data.get("config"),
+                "sources": node_data.get("sources"),
+                "metrics": node_data.get("metrics"),
+                "created_at": node_data.get("created_at")
+            }
+
+        return result
     
     def build_full_lineage(self) -> dict:
         """Build complete lineage report with nodes and edges in a human-readable structure."""
@@ -153,7 +171,7 @@ class DbtColibriReportGenerator:
                         **{k: v for k, v in col_meta.items() if v is not None}
                     }
                 
-                nodes[node_id] = {
+                node_dict = {
                     "id": node_id,
                     "name": self._get_node_display_name(node_id),
                     "fullName": node_id,
@@ -170,6 +188,12 @@ class DbtColibriReportGenerator:
                     "refs": meta["refs"],
                     "columns": columns_dict,
                 }
+
+                # Add exposure_metadata if it exists
+                if "exposure_metadata" in meta:
+                    node_dict["exposure_metadata"] = meta["exposure_metadata"]
+
+                nodes[node_id] = node_dict
             return nodes[node_id]
 
         def add_edge(src_id: str, src_col: str, tgt_id: str, tgt_col: str):
@@ -232,7 +256,23 @@ class DbtColibriReportGenerator:
         for node_id, node_data in self.manifest.get("nodes", {}).items():
             if node_data.get("resource_type") in {"test", "macro", "operation"}:
                 continue  # Skip test and macro nodes
-            
+
+            for dep_node_id in node_data.get("depends_on", {}).get("nodes", []):
+                # Ensure both nodes exist in your graph
+                ensure_node(dep_node_id)
+                ensure_node(node_id)
+
+                edges.append({
+                    "id": edge_id_counter,
+                    "source": dep_node_id,
+                    "target": node_id,
+                    "sourceColumn": "",
+                    "targetColumn": "",
+                })
+                edge_id_counter += 1
+
+        # Add exposure dependencies
+        for node_id, node_data in self.manifest.get("exposures", {}).items():
             for dep_node_id in node_data.get("depends_on", {}).get("nodes", []):
                 # Ensure both nodes exist in your graph
                 ensure_node(dep_node_id)
@@ -252,7 +292,11 @@ class DbtColibriReportGenerator:
             node_id
             for node_id, data in self.manifest.get("nodes", {}).items()
             if data.get("resource_type") not in {"test", "macro", "operation"}
-        }.union({source_id for source_id in self.manifest.get("sources", {}).keys()})
+        }.union(
+            {source_id for source_id in self.manifest.get("sources", {}).keys()}
+        ).union(
+            {exposure_id for exposure_id in self.manifest.get("exposures", {}).keys()}
+        )
 
         for node_id in all_ids:
             ensure_node(node_id)
@@ -262,6 +306,11 @@ class DbtColibriReportGenerator:
         for node in nodes.values():
             # Only include non-test, non-macro nodes (already filtered above),
             # but keep both models and sources in the tree
+
+            # Skip exposures from database tree (they're not physical tables)
+            if node.get("nodeType") == "exposure":
+                continue
+
             if self.dialect == "snowflake":
                 database = (node.get("database") or "unknown").upper()
                 schema = (node.get("schema") or "unknown").upper()
@@ -291,6 +340,25 @@ class DbtColibriReportGenerator:
         path_tree: Dict[str, dict] = {}
         for node in nodes.values():
             node_path = node.get("path")
+
+            # collect all exposures under a top-level "exposures" folder ---
+            if node.get("nodeType") == "exposure":
+                # Group exposures under "exposures" folder
+                node_path_str = str(node_path) if node_path else ""
+
+                # Strip "models/" prefix if present
+                if node_path_str.startswith("models/"):
+                    node_path_str = node_path_str[7:]
+
+                # Remove the filename (last segment)
+                parts = [p for p in node_path_str.replace("\\", "/").split("/") if p]
+
+                # Build path: exposures -> (optional subfolders) -> __items__
+                cursor = path_tree.setdefault("exposures", {})
+                for segment in parts[:-1]:  # Exclude filename
+                    cursor = cursor.setdefault(segment, {})
+                cursor.setdefault("__items__", []).append(node["id"])
+                continue
 
             # collect all sources under a top-level "sources" folder ---
             if node.get("nodeType") == "source":

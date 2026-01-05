@@ -66,12 +66,13 @@ def test_normalize_relation_name_across_sql_dialects():
 
 def count_manifest_objects(manifest: dict) -> dict:
     """
-    Count nodes and sources in a dbt manifest.json.
-    
+    Count nodes, sources, and exposures in a dbt manifest.json.
+
     Returns a dict with totals and breakdown by resource_type.
     """
     nodes = manifest.get("nodes", {})
     sources = manifest.get("sources", {})
+    exposures = manifest.get("exposures", {})
 
     # Count resource types inside nodes
     resource_counts = Counter(
@@ -81,7 +82,8 @@ def count_manifest_objects(manifest: dict) -> dict:
     return {
         "nodes_total": len(nodes),
         "sources_total": len(sources),
-        "total": len(nodes) + len(sources),
+        "exposures_total": len(exposures),
+        "total": len(nodes) + len(sources) + len(exposures),
         "by_resource_type": dict(resource_counts),
     }
 

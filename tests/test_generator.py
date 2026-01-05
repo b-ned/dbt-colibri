@@ -2,6 +2,7 @@ from dbt_colibri.report.generator import DbtColibriReportGenerator
 from dbt_colibri.lineage_extractor.extractor import DbtColumnLineageExtractor
 from test_utils import count_manifest_objects, count_edges_with_double_colon
 import pytest
+import json
 
 def test_build_manifest_node_data_node_not_found(dbt_valid_test_data_dir):
     """Test build_manifest_node_data when node_id is not found in manifest or catalog."""
@@ -196,9 +197,10 @@ def test_manifest_vs_colibri_manifest_node_counts(dbt_valid_test_data_dir):
     
     # Calculate totals (excluding test nodes from manifest, hardcoded nodes from colibri)
     manifest_total = (
-        manifest_counts["sources_total"] + 
-        manifest_counts["by_resource_type"].get("model", 0) + 
-        manifest_counts["by_resource_type"].get("snapshot", 0)
+        manifest_counts["sources_total"] +
+        manifest_counts["by_resource_type"].get("model", 0) +
+        manifest_counts["by_resource_type"].get("snapshot", 0) +
+        manifest_counts["exposures_total"]
     )
     colibri_manifest_total = colibri_counts["nodes_total"] - colibri_counts["hardcoded_nodes"]
     
@@ -223,7 +225,13 @@ def test_manifest_vs_colibri_manifest_node_counts(dbt_valid_test_data_dir):
     colibri_snapshots = colibri_counts["nodes_by_type"].get("snapshot", 0)
     snapshots_match = "✅" if manifest_snapshots == colibri_snapshots else "❌"
     print(f"{'Snapshots':<15} | {manifest_snapshots:<10} | {colibri_snapshots:<10} | {snapshots_match:<5}")
-    
+
+    # Exposures comparison
+    manifest_exposures = manifest_counts["exposures_total"]
+    colibri_exposures = colibri_counts["nodes_by_type"].get("exposure", 0)
+    exposures_match = "✅" if manifest_exposures == colibri_exposures else "❌"
+    print(f"{'Exposures':<15} | {manifest_exposures:<10} | {colibri_exposures:<10} | {exposures_match:<5}")
+
     # Tests (should be excluded from colibri)
     manifest_tests = manifest_counts["by_resource_type"].get("test", 0)
     colibri_tests = colibri_counts["nodes_by_type"].get("test", 0)
@@ -257,10 +265,80 @@ def test_manifest_vs_colibri_manifest_node_counts(dbt_valid_test_data_dir):
     assert manifest_sources == colibri_sources, (
         f"Source counts should match: manifest has {manifest_sources}, colibri has {colibri_sources}"
     )
-    
+
+    assert manifest_exposures == colibri_exposures, (
+        f"Exposure counts should match: manifest has {manifest_exposures}, colibri has {colibri_exposures}"
+    )
+
     # Assertion 3: There should be exactly 1 hardcoded node
     assert colibri_counts["hardcoded_nodes"] == 1, (
         f"Expected exactly 1 hardcoded node, but found {colibri_counts['hardcoded_nodes']}"
     )
-    
+
     print("=" * 60)
+
+
+def test_exposures_included_in_output(dbt_valid_test_data_dir):
+    """Test that exposures are properly included in the generated output."""
+    if dbt_valid_test_data_dir is None:
+        pytest.skip("No valid versioned test data present")
+
+    # Load manifest to check if it has exposures
+    manifest_path = f"{dbt_valid_test_data_dir}/manifest.json"
+    with open(manifest_path, 'r') as f:
+        manifest = json.load(f)
+
+    if not manifest.get("exposures"):
+        pytest.skip(f"Test data {dbt_valid_test_data_dir} has no exposures")
+
+    catalog_path = f"{dbt_valid_test_data_dir}/catalog.json"
+
+    extractor = DbtColumnLineageExtractor(
+        manifest_path=manifest_path,
+        catalog_path=catalog_path
+    )
+    report_generator = DbtColibriReportGenerator(extractor)
+    result = report_generator.build_full_lineage()
+
+    nodes = result.get("nodes", {})
+
+    # Count exposures in manifest vs output
+    manifest_exposure_count = len(manifest.get("exposures", {}))
+    output_exposure_nodes = {
+        node_id: node_data
+        for node_id, node_data in nodes.items()
+        if node_data.get("nodeType") == "exposure"
+    }
+    output_exposure_count = len(output_exposure_nodes)
+
+    # Assert counts match
+    assert output_exposure_count == manifest_exposure_count, (
+        f"Expected {manifest_exposure_count} exposures in output, "
+        f"but found {output_exposure_count}"
+    )
+
+    # Verify exposure structure
+    for exposure_id, exposure_node in output_exposure_nodes.items():
+        assert exposure_node["nodeType"] == "exposure"
+        assert "exposure_metadata" in exposure_node
+
+        # Verify exposure_metadata has the expected fields
+        exposure_metadata = exposure_node["exposure_metadata"]
+        assert "type" in exposure_metadata
+        assert "owner" in exposure_metadata
+
+        # Verify exposure has dependencies in the lineage edges
+        manifest_exposure = manifest["exposures"][exposure_id]
+        expected_deps = manifest_exposure.get("depends_on", {}).get("nodes", [])
+
+        # Check that edges exist from dependencies to this exposure
+        edges = result.get("lineage", {}).get("edges", [])
+        exposure_edges = [
+            e for e in edges
+            if e["target"] == exposure_id and e["sourceColumn"] == ""
+        ]
+
+        assert len(exposure_edges) == len(expected_deps), (
+            f"Expected {len(expected_deps)} edges to exposure {exposure_id}, "
+            f"found {len(exposure_edges)}"
+        )
