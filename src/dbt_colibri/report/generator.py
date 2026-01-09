@@ -71,6 +71,7 @@ class DbtColibriReportGenerator:
                     "error_if": config.get("error_if"),
                 },
                 "kwargs": test_metadata.get("kwargs", {}),
+                "compiled_code": node_data.get("compiled_code"),
             }
 
             # Add depends_on for relationship tests (useful to know the referenced model)
