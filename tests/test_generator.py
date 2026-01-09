@@ -342,3 +342,178 @@ def test_exposures_included_in_output(dbt_valid_test_data_dir):
             f"Expected {len(expected_deps)} edges to exposure {exposure_id}, "
             f"found {len(exposure_edges)}"
         )
+
+
+def test_column_level_tests_included_in_output(dbt_valid_test_data_dir):
+    """Test that column-level tests are properly attached to columns in the output."""
+    if dbt_valid_test_data_dir is None:
+        pytest.skip("No valid versioned test data present")
+
+    manifest_path = f"{dbt_valid_test_data_dir}/manifest.json"
+    catalog_path = f"{dbt_valid_test_data_dir}/catalog.json"
+
+    # Load manifest to find tests
+    with open(manifest_path, 'r') as f:
+        manifest = json.load(f)
+
+    # Find column-level tests (tests with column_name set)
+    column_tests = {}
+    for node_id, node_data in manifest.get("nodes", {}).items():
+        if node_data.get("resource_type") == "test":
+            attached_node = node_data.get("attached_node")
+            column_name = node_data.get("column_name")
+            if attached_node and column_name:
+                key = (attached_node, column_name.lower())
+                if key not in column_tests:
+                    column_tests[key] = []
+                column_tests[key].append(node_id)
+
+    if not column_tests:
+        pytest.skip(f"Test data {dbt_valid_test_data_dir} has no column-level tests")
+
+    extractor = DbtColumnLineageExtractor(
+        manifest_path=manifest_path,
+        catalog_path=catalog_path
+    )
+    report_generator = DbtColibriReportGenerator(extractor)
+    result = report_generator.build_full_lineage()
+
+    nodes = result.get("nodes", {})
+
+    # Verify that column-level tests are attached to the correct columns
+    tests_found = 0
+    for (model_id, col_name), test_ids in column_tests.items():
+        if model_id not in nodes:
+            continue
+
+        model_node = nodes[model_id]
+        columns = model_node.get("columns", {})
+
+        if col_name not in columns:
+            continue
+
+        column_data = columns[col_name]
+        column_tests_in_output = column_data.get("tests", [])
+
+        # Verify each expected test is present
+        for test_id in test_ids:
+            test_found = any(
+                t.get("unique_id") == test_id
+                for t in column_tests_in_output
+            )
+            if test_found:
+                tests_found += 1
+
+    # At least some column-level tests should be found
+    assert tests_found > 0, "No column-level tests were found in the output"
+    print(f"\n✓ Found {tests_found} column-level tests attached to columns")
+
+
+def test_model_level_tests_included_in_output(dbt_valid_test_data_dir):
+    """Test that model-level tests (without column_name) are attached to nodes."""
+    if dbt_valid_test_data_dir is None:
+        pytest.skip("No valid versioned test data present")
+
+    manifest_path = f"{dbt_valid_test_data_dir}/manifest.json"
+    catalog_path = f"{dbt_valid_test_data_dir}/catalog.json"
+
+    # Load manifest to find model-level tests
+    with open(manifest_path, 'r') as f:
+        manifest = json.load(f)
+
+    # Find model-level tests (tests without column_name)
+    model_tests = {}
+    for node_id, node_data in manifest.get("nodes", {}).items():
+        if node_data.get("resource_type") == "test":
+            attached_node = node_data.get("attached_node")
+            column_name = node_data.get("column_name")
+            if attached_node and column_name is None:
+                if attached_node not in model_tests:
+                    model_tests[attached_node] = []
+                model_tests[attached_node].append(node_id)
+
+    if not model_tests:
+        pytest.skip(f"Test data {dbt_valid_test_data_dir} has no model-level tests")
+
+    extractor = DbtColumnLineageExtractor(
+        manifest_path=manifest_path,
+        catalog_path=catalog_path
+    )
+    report_generator = DbtColibriReportGenerator(extractor)
+    result = report_generator.build_full_lineage()
+
+    nodes = result.get("nodes", {})
+
+    # Verify that model-level tests are attached to nodes
+    tests_found = 0
+    for model_id, test_ids in model_tests.items():
+        if model_id not in nodes:
+            continue
+
+        model_node = nodes[model_id]
+        node_tests = model_node.get("tests", [])
+
+        # Verify each expected test is present
+        for test_id in test_ids:
+            test_found = any(
+                t.get("unique_id") == test_id
+                for t in node_tests
+            )
+            if test_found:
+                tests_found += 1
+
+    # At least some model-level tests should be found
+    assert tests_found > 0, "No model-level tests were found in the output"
+    print(f"\n✓ Found {tests_found} model-level tests attached to nodes")
+
+
+def test_test_metadata_structure(dbt_valid_test_data_dir):
+    """Test that test metadata has the correct structure with all expected fields."""
+    if dbt_valid_test_data_dir is None:
+        pytest.skip("No valid versioned test data present")
+
+    manifest_path = f"{dbt_valid_test_data_dir}/manifest.json"
+    catalog_path = f"{dbt_valid_test_data_dir}/catalog.json"
+
+    extractor = DbtColumnLineageExtractor(
+        manifest_path=manifest_path,
+        catalog_path=catalog_path
+    )
+    report_generator = DbtColibriReportGenerator(extractor)
+    result = report_generator.build_full_lineage()
+
+    nodes = result.get("nodes", {})
+
+    # Find any test in the output (column-level or model-level)
+    test_sample = None
+    for node_id, node_data in nodes.items():
+        # Check model-level tests
+        if "tests" in node_data:
+            test_sample = node_data["tests"][0]
+            break
+        # Check column-level tests
+        for col_name, col_data in node_data.get("columns", {}).items():
+            if "tests" in col_data:
+                test_sample = col_data["tests"][0]
+                break
+        if test_sample:
+            break
+
+    if test_sample is None:
+        pytest.skip(f"No tests found in {dbt_valid_test_data_dir}")
+
+    # Verify the test structure has all expected fields
+    assert "unique_id" in test_sample, "Test should have unique_id"
+    assert "name" in test_sample, "Test should have name"
+    assert "namespace" in test_sample, "Test should have namespace"
+    assert "config" in test_sample, "Test should have config"
+    assert "kwargs" in test_sample, "Test should have kwargs"
+
+    # Verify config structure
+    config = test_sample["config"]
+    assert "severity" in config, "Test config should have severity"
+    assert "warn_if" in config, "Test config should have warn_if"
+    assert "error_if" in config, "Test config should have error_if"
+
+    print("\n✓ Test metadata structure is correct")
+    print(f"  Sample test: {test_sample['name']} ({test_sample['unique_id']})")

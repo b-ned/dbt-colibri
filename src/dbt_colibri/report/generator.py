@@ -12,12 +12,12 @@ import base64
 class DbtColibriReportGenerator:
     """
     Generates dbt-colibri report data from lineage extraction results.
-    
+
     Uses composition with DbtColumnLineageExtractor to separate concerns:
     - Lineage extraction (DbtColumnLineageExtractor)
     - Report generation (DbtColibriReportGenerator)
     """
-    
+
     def __init__(self, extractor: DbtColumnLineageExtractor, light_mode: bool = False):
         self.extractor = extractor
         self.manifest = extractor.manifest
@@ -26,6 +26,72 @@ class DbtColibriReportGenerator:
         self.colibri_version = extractor.colibri_version
         self.dialect = extractor.dialect
         self.light_mode = light_mode
+        self._tests_by_node: Optional[Dict[str, Dict[str, List[dict]]]] = None
+
+    def _build_tests_by_node(self) -> Dict[str, Dict[str, List[dict]]]:
+        """
+        Build an index of tests grouped by attached node and column name.
+
+        Returns a dict with structure:
+        {
+            "model.project.model_name": {
+                "column_name": [test1, test2, ...],  # Column-level tests
+                "__model__": [test3, ...]  # Model-level tests (column_name is null)
+            }
+        }
+        """
+        if self._tests_by_node is not None:
+            return self._tests_by_node
+
+        tests_by_node: Dict[str, Dict[str, List[dict]]] = {}
+
+        for node_id, node_data in self.manifest.get("nodes", {}).items():
+            if node_data.get("resource_type") != "test":
+                continue
+
+            attached_node = node_data.get("attached_node")
+            if not attached_node:
+                continue
+
+            # Extract the column name (lowercase for consistency)
+            column_name = node_data.get("column_name")
+            column_key = column_name.lower() if column_name else "__model__"
+
+            # Extract test metadata
+            test_metadata = node_data.get("test_metadata", {})
+            config = node_data.get("config", {})
+
+            test_entry = {
+                "unique_id": node_data.get("unique_id"),
+                "name": test_metadata.get("name"),
+                "namespace": test_metadata.get("namespace"),
+                "config": {
+                    "severity": config.get("severity"),
+                    "warn_if": config.get("warn_if"),
+                    "error_if": config.get("error_if"),
+                },
+                "kwargs": test_metadata.get("kwargs", {}),
+                "compiled_code": node_data.get("compiled_code"),
+            }
+
+            # Add depends_on for relationship tests (useful to know the referenced model)
+            depends_on_nodes = node_data.get("depends_on", {}).get("nodes", [])
+            if len(depends_on_nodes) > 1:
+                # For relationship tests, include referenced models (excluding the attached model)
+                test_entry["depends_on_nodes"] = [
+                    n for n in depends_on_nodes if n != attached_node
+                ]
+
+            # Initialize nested structure if needed
+            if attached_node not in tests_by_node:
+                tests_by_node[attached_node] = {}
+            if column_key not in tests_by_node[attached_node]:
+                tests_by_node[attached_node][column_key] = []
+
+            tests_by_node[attached_node][column_key].append(test_entry)
+
+        self._tests_by_node = tests_by_node
+        return tests_by_node
 
     def detect_model_type(self, node_id: str) -> str:
         """Detect model type based on naming conventions."""
@@ -157,20 +223,31 @@ class DbtColibriReportGenerator:
         edges: List[dict] = []
         edge_id_counter = 1
 
+        # Build test index once for efficient lookup
+        tests_by_node = self._build_tests_by_node()
+
         def ensure_node(node_id: str) -> dict:
             """Ensure a node exists in the nodes dict, creating if necessary."""
             if node_id not in nodes:
                 meta = self.build_manifest_node_data(node_id)
-                
+
+                # Get tests for this node
+                node_tests = tests_by_node.get(node_id, {})
+
                 # Build columns dictionary (keyed by column name)
                 columns_dict = {}
                 for col_name, col_meta in meta["columns"].items():
-                    columns_dict[col_name] = {
+                    col_entry = {
                         "columnName": col_name,
                         "hasLineage": False,  # Will be updated when we process lineage
                         **{k: v for k, v in col_meta.items() if v is not None}
                     }
-                
+                    # Add column-level tests if any exist
+                    col_tests = node_tests.get(col_name, [])
+                    if col_tests:
+                        col_entry["tests"] = col_tests
+                    columns_dict[col_name] = col_entry
+
                 node_dict = {
                     "id": node_id,
                     "name": self._get_node_display_name(node_id),
@@ -188,6 +265,11 @@ class DbtColibriReportGenerator:
                     "refs": meta["refs"],
                     "columns": columns_dict,
                 }
+
+                # Add model-level tests (tests without a specific column)
+                model_tests = node_tests.get("__model__", [])
+                if model_tests:
+                    node_dict["tests"] = model_tests
 
                 # Add exposure_metadata if it exists
                 if "exposure_metadata" in meta:
