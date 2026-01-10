@@ -37,8 +37,9 @@ def test_build_manifest_node_data_node_not_found(dbt_valid_test_data_dir):
         "contractEnforced": None,
         "refs": [],
         "columns": {},
+        "relationName": None,
     }
-    
+
     assert node_data == expected_structure
     assert node_data["nodeType"] == "unknown"
     assert node_data["rawCode"] is None
