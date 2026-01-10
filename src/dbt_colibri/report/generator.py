@@ -151,6 +151,7 @@ class DbtColibriReportGenerator:
                 "refs": [],
                 "columns": {},
                 "database": None,
+                "relationName": None,
             }
 
         # Build columns based ONLY on catalog columns (real table),
@@ -188,7 +189,8 @@ class DbtColibriReportGenerator:
             "contractEnforced": node_data.get("config", {}).get("contract", {}).get("enforced"),
             "refs": node_data.get("refs", []),
             "columns": columns,
-            "database": node_data.get("database")
+            "database": node_data.get("database"),
+            "relationName": node_data.get("relation_name")
         }
 
         # Add exposure_metadata for exposures
@@ -264,6 +266,7 @@ class DbtColibriReportGenerator:
                     "compiledCode": meta["compiledCode"],
                     "refs": meta["refs"],
                     "columns": columns_dict,
+                    "relationName": meta.get("relationName"),
                 }
 
                 # Add model-level tests (tests without a specific column)
