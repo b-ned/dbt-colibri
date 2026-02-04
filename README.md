@@ -125,6 +125,7 @@ Gitlab has similar functionality. Other options are writing the file to a bucket
    - Trino
    - SQL Server (TSQL)
    - ClickHouse
+   - Oracle
 
 ### dbt Compatibility
 
