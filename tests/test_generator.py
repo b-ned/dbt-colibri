@@ -1,6 +1,7 @@
 from dbt_colibri.report.generator import DbtColibriReportGenerator
 from dbt_colibri.lineage_extractor.extractor import DbtColumnLineageExtractor
 from test_utils import count_manifest_objects, count_edges_with_double_colon
+from unittest.mock import MagicMock
 import pytest
 import json
 
@@ -49,6 +50,43 @@ def test_build_manifest_node_data_node_not_found(dbt_valid_test_data_dir):
     assert node_data["contractEnforced"] is None
     assert node_data["refs"] == []
     assert node_data["columns"] == {}
+
+
+def test_build_manifest_node_data_contract_is_none():
+    """Test build_manifest_node_data when config.contract is explicitly None.
+
+    dbt Cloud starter projects produce manifests where contract is None rather
+    than a dict.  Previously this caused:
+        AttributeError: 'NoneType' object has no attribute 'get'
+    """
+    extractor = MagicMock()
+    extractor.manifest = {
+        "nodes": {
+            "model.my_project.my_model": {
+                "resource_type": "model",
+                "config": {"materialized": "view", "contract": None},
+                "raw_code": "select 1",
+                "compiled_code": "select 1",
+                "schema": "main",
+                "original_file_path": "models/my_model.sql",
+                "description": "A model",
+                "refs": [],
+                "columns": {},
+                "database": "dev",
+                "relation_name": "dev.main.my_model",
+            }
+        },
+        "sources": {},
+        "exposures": {},
+    }
+    extractor.catalog = {"nodes": {}, "sources": {}}
+
+    generator = DbtColibriReportGenerator(extractor)
+    node_data = generator.build_manifest_node_data("model.my_project.my_model")
+
+    assert node_data["contractEnforced"] is None
+    assert node_data["nodeType"] == "model"
+    assert node_data["materialized"] == "view"
 
 
 def test_detect_model_type_with_non_existent_node(dbt_valid_test_data_dir):

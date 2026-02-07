@@ -176,7 +176,7 @@ class DbtColibriReportGenerator:
                 columns[col_lc] = entry
 
         node_type = node_data.get("resource_type", "unknown")
-        materialized = node_data.get("config", {}).get("materialized", "unknown")
+        materialized = (node_data.get("config") or {}).get("materialized", "unknown")
 
         result = {
             "nodeType": node_type,
@@ -186,7 +186,7 @@ class DbtColibriReportGenerator:
             "schema": node_data.get("schema"),
             "path": node_data.get("original_file_path"),
             "description": node_data.get("description"),
-            "contractEnforced": node_data.get("config", {}).get("contract", {}).get("enforced"),
+            "contractEnforced": ((node_data.get("config") or {}).get("contract") or {}).get("enforced"),
             "refs": node_data.get("refs", []),
             "columns": columns,
             "database": node_data.get("database"),
