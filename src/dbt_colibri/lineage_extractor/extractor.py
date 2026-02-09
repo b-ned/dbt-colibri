@@ -434,10 +434,13 @@ class DbtColumnLineageExtractor:
             return None
             
         column_name = node.name.split(".")[-1].lower()
-        
-        table_name = self._table_key_from_sqlglot_table_node(node)
-        if not table_name:
-            return None
+
+        if self.dialect == 'clickhouse':
+            table_name = f"{node.source.db}.{node.source.name}"
+        elif self.dialect == 'oracle':
+            table_name = self._table_key_from_sqlglot_table_node(node)
+        else:
+            table_name = f"{node.source.catalog}.{node.source.db}.{node.source.name}"
         
         for key, data in self.nodes_with_columns.items():
             if key.lower() == table_name.lower():
