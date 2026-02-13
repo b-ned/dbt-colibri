@@ -499,7 +499,7 @@ class DbtColibriReportGenerator:
 
             # Rebuild dict with sorted folder keys first, then __items__ last
             sorted_folder = {}
-            for key in sorted(k for k in folder.keys() if key != "__items__"):
+            for key in sorted(k for k in folder.keys() if k != "__items__"):
                 sorted_folder[key] = folder[key]
             if "__items__" in folder:
                 sorted_folder["__items__"] = folder["__items__"]

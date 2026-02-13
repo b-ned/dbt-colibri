@@ -554,5 +554,147 @@ def test_test_metadata_structure(dbt_valid_test_data_dir):
     assert "warn_if" in config, "Test config should have warn_if"
     assert "error_if" in config, "Test config should have error_if"
 
-    print("\n✓ Test metadata structure is correct")
+    print("\\n✓ Test metadata structure is correct")
     print(f"  Sample test: {test_sample['name']} ({test_sample['unique_id']})")
+
+
+def test_bypath_tree_contains_all_model_nodes(dbt_valid_test_data_dir):
+    """Regression test: byPath tree must include ALL model/seed nodes, including those in subfolders.
+
+    Previously, a variable scoping bug in sort_path_tree caused subfolders (e.g. models/staging/)
+    to be silently dropped when the last dict key iterated in the parent folder was '__items__'.
+    This meant models like stg_customers and stg_orders disappeared from the byPath tree even
+    though they appeared correctly in the byDatabase tree.
+    """
+    if dbt_valid_test_data_dir is None:
+        pytest.skip("No valid versioned test data present")
+
+    manifest_path = f"{dbt_valid_test_data_dir}/manifest.json"
+    catalog_path = f"{dbt_valid_test_data_dir}/catalog.json"
+
+    extractor = DbtColumnLineageExtractor(
+        manifest_path=manifest_path,
+        catalog_path=catalog_path
+    )
+    report_generator = DbtColibriReportGenerator(extractor)
+    result = report_generator.build_full_lineage()
+
+    tree = result.get("tree", {})
+    by_database = tree.get("byDatabase", {})
+    by_path = tree.get("byPath", {})
+
+    # Collect all node IDs from byDatabase tree
+    db_node_ids = set()
+    for database, schemas in by_database.items():
+        for schema, node_ids in schemas.items():
+            db_node_ids.update(node_ids)
+
+    # Collect all node IDs from byPath tree (recursively walk)
+    def collect_path_items(folder: dict) -> set:
+        items = set()
+        for key, val in folder.items():
+            if key == "__items__":
+                items.update(val)
+            elif isinstance(val, dict):
+                items.update(collect_path_items(val))
+        return items
+
+    path_node_ids = set()
+    for project_name, project_tree in by_path.items():
+        path_node_ids.update(collect_path_items(project_tree))
+
+    # byDatabase does not include exposures, so filter them out from path nodes for comparison
+    path_non_exposure_ids = {
+        nid for nid in path_node_ids
+        if not nid.startswith("exposure.")
+    }
+
+    # Every node in byDatabase must also appear in byPath
+    missing_from_path = db_node_ids - path_non_exposure_ids
+    assert not missing_from_path, (
+        f"Nodes present in byDatabase but missing from byPath tree: {missing_from_path}. "
+        f"This typically indicates that subfolders were dropped during tree sorting."
+    )
+
+    # Every non-exposure node in byPath must also appear in byDatabase
+    missing_from_db = path_non_exposure_ids - db_node_ids
+    # Some nodes (like those without a database) might only be in byPath, so just warn
+    if missing_from_db:
+        print(f"\n⚠ Nodes in byPath but not in byDatabase (may be expected): {missing_from_db}")
+
+    print(f"\n✓ byPath tree contains all {len(db_node_ids)} nodes from byDatabase")
+    print(f"  byPath total (incl. exposures): {len(path_node_ids)}")
+
+
+def test_sort_path_tree_preserves_subfolders():
+    """Unit test: sort_path_tree must not drop subfolders when __items__ is present.
+
+    This directly tests the fix for the variable scoping bug where 'key' from an outer
+    loop was used instead of 'k' in a generator filter, causing subfolders to be dropped.
+    """
+    from unittest.mock import MagicMock
+
+    extractor = MagicMock()
+    extractor.manifest = {
+        "metadata": {"project_name": "test_project"},
+        "nodes": {
+            "model.test.parent_model": {
+                "resource_type": "model",
+                "config": {"materialized": "table"},
+                "raw_code": "select 1",
+                "compiled_code": "select 1",
+                "schema": "main",
+                "original_file_path": "models/parent_model.sql",
+                "description": "",
+                "refs": [],
+                "columns": {},
+                "database": "db",
+                "relation_name": "db.main.parent_model",
+            },
+            "model.test.child_model": {
+                "resource_type": "model",
+                "config": {"materialized": "view"},
+                "raw_code": "select 1",
+                "compiled_code": "select 1",
+                "schema": "main",
+                "original_file_path": "models/staging/child_model.sql",
+                "description": "",
+                "refs": [],
+                "columns": {},
+                "database": "db",
+                "relation_name": "db.main.child_model",
+            },
+        },
+        "sources": {},
+        "exposures": {},
+    }
+    extractor.catalog = {"nodes": {}, "sources": {}}
+    extractor.colibri_version = "test"
+    extractor.dialect = "duckdb"
+    extractor.logger = MagicMock()
+
+    # Mock extract_project_lineage to return empty lineage
+    extractor.extract_project_lineage.return_value = {
+        "lineage": {"parents": {}, "children": {}}
+    }
+
+    generator = DbtColibriReportGenerator(extractor)
+    result = generator.build_full_lineage()
+
+    by_path = result["tree"]["byPath"]
+    project_tree = by_path["test_project"]
+
+    # The models folder must have BOTH __items__ and a staging subfolder
+    models_folder = project_tree.get("models", {})
+    assert "__items__" in models_folder, (
+        f"models folder should have __items__, got keys: {list(models_folder.keys())}"
+    )
+    assert "staging" in models_folder, (
+        f"models folder should have 'staging' subfolder, got keys: {list(models_folder.keys())}. "
+        f"This indicates the sort_path_tree function is dropping subfolders."
+    )
+
+    # Verify the items are in the correct locations
+    assert "model.test.parent_model" in models_folder["__items__"]
+    assert "model.test.child_model" in models_folder["staging"]["__items__"]
+
