@@ -102,7 +102,7 @@ class DbtColumnLineageExtractor:
         Raises:
             ValueError: If adapter_type is not found or not supported
         """
-        SUPPORTED_ADAPTERS = {'snowflake', 'bigquery', 'redshift', 'duckdb', 'postgres', 'databricks', 'athena', 'trino', 'sqlserver', 'clickhouse'}
+        SUPPORTED_ADAPTERS = {'snowflake', 'bigquery', 'redshift', 'duckdb', 'postgres', 'databricks', 'athena', 'trino', 'sqlserver', 'clickhouse', 'oracle'}
         
         # Get adapter_type from manifest metadata
         adapter_type = self.manifest.get("metadata", {}).get("adapter_type")
@@ -253,10 +253,26 @@ class DbtColumnLineageExtractor:
             else:
                 self.logger.warning(f"Parent model {parent} not found in catalog")
         return parent_catalog
+    
+    def _sanitize_sql_for_parsing(self, sql):
+        # Placeholder for any SQL sanitization needed before parsing
+        if self.dialect != "oracle":
+            return sql
+
+        sql = re.sub(r"(?i)\bLISTAGG\s*\(\s*DISTINCT\s+", "LISTAGG(", sql)
+
+        sql = re.sub(
+            r"(?is)\bON\s+OVERFLOW\s+(?:TRUNCATE|ERROR)\b(?:\s+'[^']*')?(?:\s+(?:WITH|WITHOUT)\s+COUNT)?",
+            "",
+            sql,
+        )
+
+        return sql
 
     def _extract_lineage_for_model(self, model_sql, schema, model_node, resource_type, selected_columns=[]):
         lineage_map = {}
-        parsed_model_sql = maybe_parse(model_sql, dialect=self.dialect)
+        model_sql_for_parse = self._sanitize_sql_for_parsing(model_sql)
+        parsed_model_sql = maybe_parse(model_sql_for_parse, dialect=self.dialect)
         # sqlglot does not unfold * to schema when the schema has quotes, or upper (for BigQuery)
         if self.dialect == "postgres":
             parsed_model_sql = parsing_utils.remove_quotes(parsed_model_sql)
@@ -390,6 +406,25 @@ class DbtColumnLineageExtractor:
                 f"Completed with {error_count} errors out of {processed_count} models processed"
             )
         return lineage_map
+    
+    def _table_key_from_sqlglot_table_node(self, node):
+        catalog = (node.source.catalog or "").strip()
+        db = (node.source.db or "").strip()
+        table_name = (node.source.name or "").strip()
+
+        if not table_name:
+            return ""
+
+        if not catalog:
+            if not db:
+                return table_name.lower()
+
+            return f"{db}.{table_name}".lower()
+        
+        if not db:
+            return f"{catalog}.{table_name}".lower()
+
+        return f"{catalog}.{db}.{table_name}".lower()
 
     def get_dbt_node_from_sqlglot_table_node(self, node, model_node):
         if node.source.key != "table":
@@ -399,9 +434,11 @@ class DbtColumnLineageExtractor:
             return None
             
         column_name = node.name.split(".")[-1].lower()
-        
+
         if self.dialect == 'clickhouse':
             table_name = f"{node.source.db}.{node.source.name}"
+        elif self.dialect == 'oracle':
+            table_name = self._table_key_from_sqlglot_table_node(node)
         else:
             table_name = f"{node.source.catalog}.{node.source.db}.{node.source.name}"
         
@@ -624,7 +661,8 @@ class DbtColumnLineageExtractor:
                 model_sql = model_info["compiled_code"]
 
                 # Parse and qualify once per model
-                parsed_model_sql = maybe_parse(model_sql, dialect=self.dialect)
+                model_sql_for_parse = self._sanitize_sql_for_parsing(model_sql)
+                parsed_model_sql = maybe_parse(model_sql_for_parse, dialect=self.dialect)
                 if self.dialect == "postgres":
                     parsed_model_sql = parsing_utils.remove_quotes(parsed_model_sql)
                 if self.dialect == "bigquery":
