@@ -219,6 +219,7 @@ class DbtColibriReportGenerator:
         lineage_data = self.extractor.extract_project_lineage()
         parents_map = lineage_data["lineage"]["parents"]
         children_map = lineage_data["lineage"]["children"]
+        extraction_errors = lineage_data.get("errors", [])
 
         # Build nodes dictionary (keyed by node_id for easy lookup)
         nodes: Dict[str, dict] = {}
@@ -556,6 +557,9 @@ class DbtColibriReportGenerator:
         if self.light_mode:
             self._apply_light_mode_filter(result)
 
+        # Include extraction errors for downstream consumers
+        result["errors"] = extraction_errors
+
         return result
     
     def _apply_light_mode_filter(self, result: dict) -> None:
@@ -590,6 +594,14 @@ class DbtColibriReportGenerator:
         target_path = Path(output_dir)
         target_path.mkdir(parents=True, exist_ok=True)
         
+        # Extract and write parsing errors to a separate file (keep manifest clean)
+        parsing_errors = lineage.pop("errors", [])
+        if parsing_errors:
+            errors_path = target_path / "colibri-parsing-errors.json"
+            with open(errors_path, "w", encoding="utf-8") as f:
+                json.dump(parsing_errors, f, indent=2)
+            self.logger.info(f"Wrote {len(parsing_errors)} parsing errors to {errors_path}")
+
         # Save full JSON data (with parents and children)
         json_path = target_path / "colibri-manifest.json"
         with open(json_path, "w", encoding="utf-8") as f:
