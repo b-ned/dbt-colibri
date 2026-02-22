@@ -281,16 +281,19 @@ class DbtColibriReportGenerator:
                 nodes[node_id] = node_dict
             return nodes[node_id]
 
-        def add_edge(src_id: str, src_col: str, tgt_id: str, tgt_col: str):
+        def add_edge(src_id: str, src_col: str, tgt_id: str, tgt_col: str, edge_type: str = None):
             """Add an edge between two columns."""
             nonlocal edge_id_counter
-            edges.append({
+            edge = {
                 "id": edge_id_counter,
                 "source": src_id,
                 "target": tgt_id,
                 "sourceColumn": src_col,
                 "targetColumn": tgt_col,
-            })
+            }
+            if edge_type:
+                edge["edgeType"] = edge_type
+            edges.append(edge)
             edge_id_counter += 1
 
         # Traverse all edges from parents_map
@@ -306,20 +309,30 @@ class DbtColibriReportGenerator:
 
         for tgt_id, mapping in parents_map.items():
             for tgt_col, sources in mapping.items():
-                # Ensure target node exists and normalize target column once
+                # Detect structural edge type
+                edge_type = None
+                if tgt_col == "__colibri_filter__":
+                    edge_type = "filter"
+                elif tgt_col == "__colibri_join__":
+                    edge_type = "join"
+
+                # Ensure target node exists
                 tgt_node = ensure_node(tgt_id)
-                norm_tgt_col = _normalize_col_name(tgt_col)
 
-                # Aggregate lineage type for the target column
-                # If multiple parents -> "transformation"; otherwise use the sole parent's lineage_type
-                aggregated_lineage = "unknown"
-                if isinstance(sources, list) and len(sources) >= 2:
-                    aggregated_lineage = "transformation"
-                elif isinstance(sources, list) and len(sources) == 1:
-                    aggregated_lineage = sources[0].get("lineage_type") or "unknown"
+                # Only process lineageType/hasLineage for data edges (not structural)
+                if not edge_type:
+                    norm_tgt_col = _normalize_col_name(tgt_col)
 
-                if norm_tgt_col in tgt_node["columns"]:
-                    tgt_node["columns"][norm_tgt_col]["lineageType"] = aggregated_lineage
+                    # Aggregate lineage type for the target column
+                    # If multiple parents -> "transformation"; otherwise use the sole parent's lineage_type
+                    aggregated_lineage = "unknown"
+                    if isinstance(sources, list) and len(sources) >= 2:
+                        aggregated_lineage = "transformation"
+                    elif isinstance(sources, list) and len(sources) == 1:
+                        aggregated_lineage = sources[0].get("lineage_type") or "unknown"
+
+                    if norm_tgt_col in tgt_node["columns"]:
+                        tgt_node["columns"][norm_tgt_col]["lineageType"] = aggregated_lineage
 
                 for src in sources:
                     src_id, src_col = src["dbt_node"], src["column"]
@@ -329,13 +342,18 @@ class DbtColibriReportGenerator:
                     # Ensure source node exists
                     src_node = ensure_node(src_id)
 
-                    # Update column lineage flags
+                    # Source column always gets hasLineage=True
                     if norm_src_col in src_node["columns"]:
                         src_node["columns"][norm_src_col]["hasLineage"] = True
-                    if norm_tgt_col in tgt_node["columns"]:
-                        tgt_node["columns"][norm_tgt_col]["hasLineage"] = True
 
-                    add_edge(src_id, norm_src_col, tgt_id, norm_tgt_col)
+                    if not edge_type:
+                        # Data edge: update target column too
+                        if norm_tgt_col in tgt_node["columns"]:
+                            tgt_node["columns"][norm_tgt_col]["hasLineage"] = True
+                        add_edge(src_id, norm_src_col, tgt_id, norm_tgt_col)
+                    else:
+                        # Structural edge: empty targetColumn + edgeType
+                        add_edge(src_id, norm_src_col, tgt_id, "", edge_type=edge_type)
 
         # Traverse all depends_on nodes to add model-level relationships
         for node_id, node_data in self.manifest.get("nodes", {}).items():

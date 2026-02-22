@@ -377,3 +377,62 @@ def to_node(
     node.lineage_type = agg_type
 
     return node
+
+
+def extract_structural_lineage(scope, dialect, trim_selects=True):
+    """Extract columns from WHERE/HAVING/JOIN ON and trace them to source tables.
+
+    Uses the same recursive to_node() logic as data lineage for CTE resolution.
+
+    Returns: {"filter": [Node, ...], "join": [Node, ...]}
+    """
+    results = {"filter": [], "join": []}
+    visited = set()
+
+    for current_scope in scope.traverse():
+        expr = current_scope.expression
+        if not isinstance(expr, exp.Select):
+            continue
+
+        # WHERE columns → filter
+        where = expr.args.get("where")
+        if where:
+            for col in where.find_all(exp.Column):
+                node = _resolve_structural_column(col, current_scope, dialect, visited, trim_selects)
+                if node:
+                    results["filter"].append(node)
+
+        # HAVING columns → filter
+        having = expr.args.get("having")
+        if having:
+            for col in having.find_all(exp.Column):
+                node = _resolve_structural_column(col, current_scope, dialect, visited, trim_selects)
+                if node:
+                    results["filter"].append(node)
+
+        # JOIN ON columns → join
+        joins = expr.args.get("joins") or []
+        for join in joins:
+            on_clause = join.args.get("on")
+            if on_clause:
+                for col in on_clause.find_all(exp.Column):
+                    node = _resolve_structural_column(col, current_scope, dialect, visited, trim_selects)
+                    if node:
+                        results["join"].append(node)
+
+    return results
+
+
+def _resolve_structural_column(col, scope, dialect, visited, trim_selects):
+    """Resolve a single column from WHERE/JOIN using scope.sources + to_node()."""
+    table = col.table
+    source = scope.sources.get(table)
+
+    if isinstance(source, Scope):
+        # CTE/subquery → trace through using to_node() (same recursive logic)
+        return to_node(col.name, scope=source, dialect=dialect,
+                       scope_name=table, trim_selects=trim_selects, visited=visited)
+    elif source and isinstance(source, exp.Table):
+        # Leaf table → create leaf Node directly
+        return Node(name=col.sql(comments=False), source=source, expression=source)
+    return None

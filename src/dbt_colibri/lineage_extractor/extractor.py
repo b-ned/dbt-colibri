@@ -2,7 +2,7 @@
 from sqlglot.lineage import maybe_parse, SqlglotError, exp
 import logging
 from ..utils import json_utils, parsing_utils
-from .lineage import lineage, prepare_scope
+from .lineage import lineage, prepare_scope, extract_structural_lineage
 import re
 from importlib.metadata import version, PackageNotFoundError
 import gc
@@ -728,6 +728,35 @@ class DbtColumnLineageExtractor:
                         self.logger.error(
                             f"Unexpected error processing model {model_node}, column {column_name}: {e}"
                         )
+
+                # Extract structural lineage (WHERE/HAVING/JOIN ON columns)
+                try:
+                    structural = extract_structural_lineage(scope, self.dialect)
+                    for edge_type, nodes_list in structural.items():
+                        if not nodes_list:
+                            continue
+                        key = f"__colibri_{edge_type}__"
+                        entries = []
+                        for struct_node in nodes_list:
+                            if struct_node is None:
+                                continue
+                            for n in struct_node.walk():
+                                if n.source.key == "table":
+                                    parent_columns = self.get_dbt_node_from_sqlglot_table_node(n, model_node)
+                                    if parent_columns and parent_columns["dbt_node"] != model_node:
+                                        parent_columns["lineage_type"] = edge_type
+                                        if parent_columns not in entries:
+                                            entries.append(parent_columns)
+                                            # Update children map
+                                            parent_model = parent_columns["dbt_node"]
+                                            parent_col = parent_columns["column"].lower()
+                                            children.setdefault(parent_model, {}).setdefault(parent_col, []).append(
+                                                {"column": key, "dbt_node": model_node}
+                                            )
+                        if entries:
+                            model_parents[key] = entries
+                except Exception as e:
+                    self.logger.debug(f"Could not extract structural columns for {model_node}: {e}")
 
                 if model_parents:
                     parents[model_node] = model_parents
