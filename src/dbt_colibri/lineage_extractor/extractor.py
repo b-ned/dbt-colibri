@@ -598,6 +598,7 @@ class DbtColumnLineageExtractor:
         total_models = len(all_models)
         processed_count = 0
         error_count = 0
+        errors = []
 
         for model_node in all_models:
             model_info = self.manifest["nodes"].get(model_node)
@@ -769,6 +770,11 @@ class DbtColumnLineageExtractor:
             except Exception as e:
                 error_count += 1
                 self.logger.error(f"Error processing model {model_node}: {str(e)}")
+                errors.append({
+                    "node_id": model_node,
+                    "error_type": type(e).__name__,
+                    "error_message": str(e),
+                })
                 self.logger.debug("Continuing with next model...")
                 continue
 
@@ -777,7 +783,7 @@ class DbtColumnLineageExtractor:
                 f"Completed with {error_count} errors out of {processed_count} models processed"
             )
 
-        return {"lineage": {"parents": parents, "children": children}}
+        return {"lineage": {"parents": parents, "children": children}, "errors": errors}
 
 class DBTNodeCatalog:
     def __init__(self, node_data):
