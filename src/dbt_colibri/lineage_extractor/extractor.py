@@ -59,11 +59,17 @@ class DbtColumnLineageExtractor:
         Validate models in manifest and catalog:
         1. Check for missing compiled SQL.
         2. Check for non-materialized models.
+
+        Stores validation counts as instance attributes for downstream consumers:
+        - self.total_model_count: total number of models in manifest
+        - self.unmaterialized_model_count: models missing from catalog
         """
         all_models = [
             node_id for node_id, node in self.manifest.get("nodes", {}).items()
             if node.get("resource_type") == "model"
         ]
+
+        self.total_model_count = len(all_models)
 
         # --- Missing compiled SQL ---
         missing_compiled = [
@@ -75,12 +81,13 @@ class DbtColumnLineageExtractor:
             total = len(all_models)
             missing = len(missing_compiled)
             msg = f"{missing}/{total} models are missing compiled SQL. Ensure dbt compile was run."
-            
+
             self.logger.error(msg)
 
         # --- Non-materialized models (missing from catalog) ---
         catalog_models = set(self.catalog.get("nodes", {}).keys())
         non_materialized = set(all_models) - catalog_models
+        self.unmaterialized_model_count = len(non_materialized)
 
         if non_materialized:
             msg = f"{len(non_materialized)}/{len(all_models)} models are not materialized (missing from catalog)."
