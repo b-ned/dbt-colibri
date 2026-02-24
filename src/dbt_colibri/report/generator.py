@@ -540,6 +540,8 @@ class DbtColibriReportGenerator:
                 "dbt_invocation_id": self.manifest.get("metadata", {}).get("invocation_id"),
                 "dbt_project_name": project_name,
                 "dbt_project_id": self.manifest.get("metadata", {}).get("project_id"),
+                "total_model_count": self.extractor.total_model_count,
+                "unmaterialized_model_count": self.extractor.unmaterialized_model_count,
             },
             "nodes": nodes,  # Dictionary keyed by node_id
             "lineage": {
