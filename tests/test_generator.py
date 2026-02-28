@@ -37,6 +37,7 @@ def test_build_manifest_node_data_node_not_found(dbt_valid_test_data_dir):
         "description": None,
         "contractEnforced": None,
         "refs": [],
+        "tags": [],
         "columns": {},
         "relationName": None,
     }
@@ -697,4 +698,163 @@ def test_sort_path_tree_preserves_subfolders():
     # Verify the items are in the correct locations
     assert "model.test.parent_model" in models_folder["__items__"]
     assert "model.test.child_model" in models_folder["staging"]["__items__"]
+
+
+def test_tags_extracted_from_manifest():
+    """Test that model-level tags are extracted from the dbt manifest into the colibri output."""
+    extractor = MagicMock()
+    extractor.manifest = {
+        "metadata": {"project_name": "test_project"},
+        "nodes": {
+            "model.test.tagged_model": {
+                "resource_type": "model",
+                "config": {"materialized": "table"},
+                "raw_code": "select 1",
+                "compiled_code": "select 1",
+                "schema": "main",
+                "original_file_path": "models/tagged_model.sql",
+                "description": "A tagged model",
+                "refs": [],
+                "columns": {},
+                "database": "dev",
+                "relation_name": "dev.main.tagged_model",
+                "tags": ["finance", "critical", "pii"],
+            },
+            "model.test.untagged_model": {
+                "resource_type": "model",
+                "config": {"materialized": "view"},
+                "raw_code": "select 1",
+                "compiled_code": "select 1",
+                "schema": "main",
+                "original_file_path": "models/untagged_model.sql",
+                "description": "A model without tags",
+                "refs": [],
+                "columns": {},
+                "database": "dev",
+                "relation_name": "dev.main.untagged_model",
+            },
+        },
+        "sources": {},
+        "exposures": {},
+    }
+    extractor.catalog = {"nodes": {}, "sources": {}}
+
+    generator = DbtColibriReportGenerator(extractor)
+
+    # Test tagged model
+    tagged = generator.build_manifest_node_data("model.test.tagged_model")
+    assert tagged["tags"] == ["finance", "critical", "pii"]
+
+    # Test untagged model (should default to empty list)
+    untagged = generator.build_manifest_node_data("model.test.untagged_model")
+    assert untagged["tags"] == []
+
+    # Test non-existent node (should default to empty list)
+    missing = generator.build_manifest_node_data("model.does_not_exist.fake")
+    assert missing["tags"] == []
+
+
+def test_tags_included_in_full_lineage_output():
+    """Test that tags flow through build_full_lineage into the final node dicts."""
+    extractor = MagicMock()
+    extractor.manifest = {
+        "metadata": {"project_name": "test_project"},
+        "nodes": {
+            "model.test.tagged_model": {
+                "resource_type": "model",
+                "config": {"materialized": "table"},
+                "raw_code": "select 1",
+                "compiled_code": "select 1",
+                "schema": "main",
+                "original_file_path": "models/tagged_model.sql",
+                "description": "Tagged",
+                "refs": [],
+                "columns": {},
+                "database": "dev",
+                "relation_name": "dev.main.tagged_model",
+                "tags": ["finance", "critical"],
+            },
+        },
+        "sources": {},
+        "exposures": {},
+    }
+    extractor.catalog = {"nodes": {}, "sources": {}}
+    extractor.colibri_version = "test"
+    extractor.dialect = "duckdb"
+    extractor.logger = MagicMock()
+
+    extractor.extract_project_lineage.return_value = {
+        "lineage": {"parents": {}, "children": {}}
+    }
+
+    generator = DbtColibriReportGenerator(extractor)
+    result = generator.build_full_lineage()
+
+    node = result["nodes"]["model.test.tagged_model"]
+    assert node["tags"] == ["finance", "critical"]
+
+
+def test_column_tags_extracted_from_manifest():
+    """Test that column-level tags from dbt manifest v12+ are extracted."""
+    extractor = MagicMock()
+    extractor.manifest = {
+        "metadata": {"project_name": "test_project"},
+        "nodes": {
+            "model.test.col_tags_model": {
+                "resource_type": "model",
+                "config": {"materialized": "table"},
+                "raw_code": "select 1",
+                "compiled_code": "select 1",
+                "schema": "main",
+                "original_file_path": "models/col_tags_model.sql",
+                "description": "Model with column tags",
+                "refs": [],
+                "columns": {
+                    "user_id": {
+                        "data_type": "integer",
+                        "description": "Primary key",
+                        "tags": ["identifier", "pii"],
+                    },
+                    "email": {
+                        "data_type": "varchar",
+                        "description": "Email address",
+                        "tags": [],
+                    },
+                    "name": {
+                        "data_type": "varchar",
+                        "description": "User name",
+                    },
+                },
+                "database": "dev",
+                "relation_name": "dev.main.col_tags_model",
+                "tags": [],
+            },
+        },
+        "sources": {},
+        "exposures": {},
+    }
+    extractor.catalog = {
+        "nodes": {
+            "model.test.col_tags_model": {
+                "columns": {
+                    "user_id": {"type": "integer"},
+                    "email": {"type": "varchar"},
+                    "name": {"type": "varchar"},
+                },
+            }
+        },
+        "sources": {},
+    }
+
+    generator = DbtColibriReportGenerator(extractor)
+    node_data = generator.build_manifest_node_data("model.test.col_tags_model")
+
+    # Column with tags should have them
+    assert node_data["columns"]["user_id"]["tags"] == ["identifier", "pii"]
+
+    # Column with empty tags should not have the key (only set when non-empty)
+    assert "tags" not in node_data["columns"]["email"]
+
+    # Column without tags key should not have it
+    assert "tags" not in node_data["columns"]["name"]
 
