@@ -149,6 +149,7 @@ class DbtColibriReportGenerator:
                 "path": None,
                 "contractEnforced": None,
                 "refs": [],
+                "tags": [],
                 "columns": {},
                 "database": None,
                 "relationName": None,
@@ -160,10 +161,14 @@ class DbtColibriReportGenerator:
         manifest_columns = {}
         if node_data and node_data.get("columns"):
             for col, val in node_data["columns"].items():
-                manifest_columns[col.lower()] = {
+                col_meta = {
                     "contractType": val.get("data_type"),
                     "description": val.get("description"),
                 }
+                col_tags = val.get("tags", [])
+                if col_tags:
+                    col_meta["tags"] = col_tags
+                manifest_columns[col.lower()] = col_meta
         if catalog_data and catalog_data.get("columns"):
             for col, val in catalog_data["columns"].items():
                 col_lc = col.lower()
@@ -173,6 +178,8 @@ class DbtColibriReportGenerator:
                         entry["contractType"] = manifest_columns[col_lc]["contractType"]
                     if manifest_columns[col_lc].get("description") is not None:
                         entry["description"] = manifest_columns[col_lc]["description"]
+                    if manifest_columns[col_lc].get("tags"):
+                        entry["tags"] = manifest_columns[col_lc]["tags"]
                 columns[col_lc] = entry
 
         node_type = node_data.get("resource_type", "unknown")
@@ -188,6 +195,7 @@ class DbtColibriReportGenerator:
             "description": node_data.get("description"),
             "contractEnforced": ((node_data.get("config") or {}).get("contract") or {}).get("enforced"),
             "refs": node_data.get("refs", []),
+            "tags": node_data.get("tags", []),
             "columns": columns,
             "database": node_data.get("database"),
             "relationName": node_data.get("relation_name")
@@ -266,6 +274,7 @@ class DbtColibriReportGenerator:
                     "rawCode": meta["rawCode"],
                     "compiledCode": meta["compiledCode"],
                     "refs": meta["refs"],
+                    "tags": meta.get("tags", []),
                     "columns": columns_dict,
                     "relationName": meta.get("relationName"),
                 }
