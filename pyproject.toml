@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
     "click>=8.1.7",
-    "sqlglot[rs]>=26.33.0",
+    "sqlglot[c]>=30.0.0",
 ]
 classifiers = [
     "Programming Language :: Python :: 3.9",

@@ -36,6 +36,7 @@ class DbtColumnLineageExtractor:
         self.dialect = self._detect_adapter_type()
         # self.node_mapping = self._get_dict_mapping_full_table_name_to_dbt_node()
         self.nodes_with_columns = self.build_nodes_with_columns()
+        self._table_to_node = {k.lower(): v for k, v in self.nodes_with_columns.items()}
         # Store references to parent and child maps for easy access
         self.parent_map = self.manifest.get("parent_map", {})
         self.child_map = self.manifest.get("child_map", {})
@@ -449,11 +450,9 @@ class DbtColumnLineageExtractor:
         else:
             table_name = f"{node.source.catalog}.{node.source.db}.{node.source.name}"
         
-        for key, data in self.nodes_with_columns.items():
-            if key.lower() == table_name.lower():
-                dbt_node = data["unique_id"]
-                break
-        
+        match = self._table_to_node.get(table_name.lower())
+        if match:
+            dbt_node = match["unique_id"]
         else:
             # Check if the table is hardcoded in raw code.
             raw_code = self.manifest["nodes"][model_node]["raw_code"].lower()
