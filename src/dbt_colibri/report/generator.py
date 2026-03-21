@@ -617,7 +617,7 @@ class DbtColibriReportGenerator:
         json_path = target_path / "colibri-manifest.json"
         with open(json_path, "w", encoding="utf-8") as f:
             json.dump(lineage, f, indent=2)
-        
+
         # Create a stripped version for HTML injection (without parents and children)
         lineage_stripped = {
             "metadata": lineage["metadata"],
@@ -628,44 +628,35 @@ class DbtColibriReportGenerator:
             },
             "tree": lineage["tree"]
         }
-        
-        # Save stripped version to a temporary file for HTML injection
-        json_path_stripped = target_path / "colibri-manifest-temp.json"
-        with open(json_path_stripped, "w", encoding="utf-8") as f:
-            json.dump(lineage_stripped, f, indent=2)
-        
-        # Delete lineage from memory to free up space before HTML injection
-        del lineage
-        del lineage_stripped
 
-        # Generate HTML with injected data
+        # Free full lineage from memory
+        del lineage
+
+        # Generate HTML with injected data directly from dict (no temp file)
         html_template_path = Path(__file__).parent / "index.html"
         html_output_path = target_path / "index.html"
-        
-        # Inject stripped data into HTML
+
         injected_html_path = inject_data_into_html(
-            json_data_path=str(json_path_stripped),
+            data=lineage_stripped,
             template_html_path=str(html_template_path),
-            output_html_path=str(html_output_path)
+            output_html_path=str(html_output_path),
         )
+        del lineage_stripped
 
         self.logger.debug(f"Injected data into HTML: {injected_html_path}")
-        
-        # Clean up the temporary stripped JSON file
-        json_path_stripped.unlink()
-        
+
         return None
 
 
 
 def inject_data_into_html(
-    json_data_path: str,
+    data: dict,
     template_html_path: str = "dist/index.html",
     output_html_path: Optional[str] = None,
 ) -> str:
     """
-    Inject JSON data into the compiled HTML file in a streaming fashion to avoid
-    loading or re-encoding the full JSON in memory.
+    Inject JSON data into the compiled HTML file by encoding the dict
+    directly to base64 without writing a temp file.
     """
     # Read the template (expected to be much smaller than the data)
     with open(template_html_path, "r", encoding="utf-8") as f:
@@ -684,34 +675,16 @@ def inject_data_into_html(
         output_dir = Path(template_html_path).parent
         output_html_path = output_dir / "index_with_data.html"
 
-    # Write output HTML while streaming base64-encoded JSON bytes
+    # Serialize to compact JSON bytes and base64 encode directly
+    json_bytes = json.dumps(data, separators=(",", ":")).encode("utf-8")
+    b64_str = base64.b64encode(json_bytes).decode("ascii")
+    del json_bytes
+
     with open(output_html_path, "w", encoding="utf-8") as out_f:
-        # Prefix (before insert point)
         out_f.write(template_html[:insert_at])
-
-        # Script preamble
         out_f.write('<script>window.colibriData = JSON.parse(atob("')
-
-        # Stream base64 of the JSON file with 3-byte boundary handling
-        with open(json_data_path, "rb") as jf:
-            leftover = b""
-            chunk_size = 1024 * 1024  # 1MB chunks
-            while True:
-                chunk = jf.read(chunk_size)
-                if not chunk:
-                    break
-                buf = leftover + chunk
-                to_encode_len = len(buf) - (len(buf) % 3)
-                if to_encode_len:
-                    out_f.write(base64.b64encode(buf[:to_encode_len]).decode("ascii"))
-                leftover = buf[to_encode_len:]
-            if leftover:
-                out_f.write(base64.b64encode(leftover).decode("ascii"))
-
-        # Script postamble
+        out_f.write(b64_str)
         out_f.write('"));</script>')
-
-        # Suffix (after insert point)
         out_f.write(template_html[insert_at:])
 
     return str(output_html_path)

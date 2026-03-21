@@ -725,6 +725,7 @@ def make_extractor(manifest_nodes=None, nodes_with_columns=None):
     # manifest should be a dict with "nodes" key (as the real class expects)
     extractor.manifest = {"nodes": manifest_nodes or {}}
     extractor.nodes_with_columns = nodes_with_columns or {}
+    extractor._table_to_node = {k.lower(): v for k, v in extractor.nodes_with_columns.items()}
     extractor.dialect = 'clickhouse'  # Set dialect to clickhouse for the test
     return extractor
 

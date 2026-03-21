@@ -1,6 +1,6 @@
 [project]
 name = "dbt-colibri"
-version = "0.2.9b4"
+version = "0.2.9b5"
 description = "A column lineage parser and dashboarding tool"
 authors = [
     { name="bned" }
@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
     "click>=8.1.7",
-    "sqlglot[rs]>=26.33.0",
+    "sqlglot[c]>=30.0.0",
 ]
 classifiers = [
     "Programming Language :: Python :: 3.9",
