@@ -1,3 +1,4 @@
+import hashlib
 import json
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -539,6 +540,15 @@ class DbtColibriReportGenerator:
 
         project_name = self.manifest.get("metadata", {}).get("project_name", "project")
 
+        # Build an anonymized project fingerprint that is stable across runs
+        # but unique per team, even if project names collide.
+        # Combines the project name with the sorted set of database.schema pairs.
+        schema_pairs = sorted(
+            {f"{db}.{s}" for db, schemas in db_tree.items() for s in schemas}
+        )
+        fingerprint_input = f"{project_name}|{'|'.join(schema_pairs)}"
+        project_fingerprint = hashlib.sha256(fingerprint_input.encode()).hexdigest()[:16]
+
         # Build the final structure
         result = {
             "metadata": {
@@ -549,7 +559,7 @@ class DbtColibriReportGenerator:
                 "dbt_schema_version": self.manifest.get("metadata", {}).get("dbt_schema_version"),
                 "dbt_invocation_id": self.manifest.get("metadata", {}).get("invocation_id"),
                 "dbt_project_name": project_name,
-                "dbt_project_id": self.manifest.get("metadata", {}).get("project_id"),
+                "dbt_project_id": project_fingerprint,
                 "total_model_count": self.extractor.total_model_count,
                 "unmaterialized_model_count": self.extractor.unmaterialized_model_count,
             },
