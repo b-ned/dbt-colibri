@@ -40,10 +40,15 @@ except PackageNotFoundError:
 @click.group()
 @click.version_option(__version__, prog_name="dbt-colibri")
 def cli():
+    """dbt-colibri CLI tool"""
     click.echo(f"{COLIBRI_LOGO}\n")
     click.echo("Welcome to dbt-colibri 🐦")
-    """dbt-colibri CLI tool"""
-    pass
+
+    from ..utils.version_check import get_update_message
+
+    update_msg = get_update_message(__version__)
+    if update_msg:
+        click.echo(click.style(update_msg, fg="yellow"))
 
 @cli.command("generate")
 @click.option(
