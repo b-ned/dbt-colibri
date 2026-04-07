@@ -1037,3 +1037,218 @@ def test_quoted_columns_preserve_case():
         assert "normal_col" in columns, f"Expected 'normal_col' in {columns}"
         # Should NOT have the lowercased version of the quoted column
         assert "quotedcolumnexample" not in columns, f"Unexpected 'quotedcolumnexample' in {columns}"
+
+
+def test_quoted_columns_end_to_end_lineage():
+    """
+    End-to-end test: verify that extract_project_lineage and build_full_lineage
+    produce correctly-cased column names for columns with quote=True.
+
+    The test creates a source with a quoted column and a model that selects from
+    it, then verifies the full lineage pipeline preserves the original casing.
+
+    Regression test for: https://github.com/b-ned/dbt-colibri/issues/102
+    """
+    from dbt_colibri.report.generator import DbtColibriReportGenerator
+
+    manifest = {
+        "metadata": {
+            "adapter_type": "snowflake",
+            "dbt_version": "1.11.6",
+            "dbt_schema_version": "https://schemas.getdbt.com/dbt/manifest/v12.json",
+            "invocation_id": "test",
+            "project_name": "quoted_test_project"
+        },
+        "nodes": {
+            "model.quoted_test_project.my_model": {
+                "path": "models/my_model.sql",
+                "original_file_path": "models/my_model.sql",
+                "resource_type": "model",
+                "compiled_code": 'SELECT "quotedColumnExample", NORMAL_COL FROM TEST_DB.RAW.SOURCE_TABLE',
+                "raw_code": 'SELECT "quotedColumnExample", NORMAL_COL FROM {{ source("raw", "source_table") }}',
+                "depends_on": {"nodes": ["source.quoted_test_project.raw.source_table"]},
+                "database": "TEST_DB",
+                "schema": "PUBLIC",
+                "name": "my_model",
+                "alias": "my_model",
+                "columns": {
+                    "quotedColumnExample": {
+                        "name": "quotedColumnExample",
+                        "description": "A quoted column",
+                        "quote": True,
+                        "data_type": "VARCHAR",
+                        "tags": []
+                    },
+                    "NORMAL_COL": {
+                        "name": "NORMAL_COL",
+                        "description": "A normal column",
+                        "data_type": "NUMBER",
+                        "tags": []
+                    }
+                },
+                "relation_name": '"TEST_DB"."PUBLIC"."MY_MODEL"',
+                "config": {"materialized": "table"},
+                "refs": [],
+                "tags": [],
+                "fqn": ["quoted_test_project", "my_model"]
+            }
+        },
+        "sources": {
+            "source.quoted_test_project.raw.source_table": {
+                "path": "models/sources.yml",
+                "original_file_path": "models/sources.yml",
+                "resource_type": "source",
+                "database": "TEST_DB",
+                "schema": "RAW",
+                "name": "source_table",
+                "identifier": "SOURCE_TABLE",
+                "columns": {
+                    "quotedColumnExample": {
+                        "name": "quotedColumnExample",
+                        "description": "Source quoted column",
+                        "quote": True,
+                        "data_type": "VARCHAR",
+                        "tags": []
+                    },
+                    "NORMAL_COL": {
+                        "name": "NORMAL_COL",
+                        "description": "Source normal column",
+                        "data_type": "NUMBER",
+                        "tags": []
+                    }
+                },
+                "relation_name": '"TEST_DB"."RAW"."SOURCE_TABLE"',
+                "config": {"materialized": None},
+                "fqn": ["quoted_test_project", "raw", "source_table"],
+                "tags": []
+            }
+        },
+        "exposures": {},
+        "parent_map": {
+            "model.quoted_test_project.my_model": ["source.quoted_test_project.raw.source_table"],
+            "source.quoted_test_project.raw.source_table": []
+        },
+        "child_map": {
+            "source.quoted_test_project.raw.source_table": ["model.quoted_test_project.my_model"],
+            "model.quoted_test_project.my_model": []
+        }
+    }
+
+    catalog = {
+        "nodes": {
+            "model.quoted_test_project.my_model": {
+                "unique_id": "model.quoted_test_project.my_model",
+                "metadata": {
+                    "database": "TEST_DB",
+                    "schema": "PUBLIC",
+                    "name": "MY_MODEL",
+                    "type": "table"
+                },
+                "columns": {
+                    "quotedColumnExample": {
+                        "type": "VARCHAR",
+                        "name": "quotedColumnExample",
+                        "index": 1,
+                        "comment": None
+                    },
+                    "NORMAL_COL": {
+                        "type": "NUMBER",
+                        "name": "NORMAL_COL",
+                        "index": 2,
+                        "comment": None
+                    }
+                }
+            }
+        },
+        "sources": {
+            "source.quoted_test_project.raw.source_table": {
+                "unique_id": "source.quoted_test_project.raw.source_table",
+                "metadata": {
+                    "database": "TEST_DB",
+                    "schema": "RAW",
+                    "name": "SOURCE_TABLE",
+                    "type": "table"
+                },
+                "columns": {
+                    "quotedColumnExample": {
+                        "type": "VARCHAR",
+                        "name": "quotedColumnExample",
+                        "index": 1,
+                        "comment": None
+                    },
+                    "NORMAL_COL": {
+                        "type": "NUMBER",
+                        "name": "NORMAL_COL",
+                        "index": 2,
+                        "comment": None
+                    }
+                }
+            }
+        }
+    }
+
+    with patch('dbt_colibri.utils.json_utils.read_json') as mock_read_json:
+        mock_read_json.side_effect = [manifest, catalog]
+
+        extractor = DbtColumnLineageExtractor(
+            manifest_path="dummy_path",
+            catalog_path="dummy_path"
+        )
+
+        # ---- Phase 1: extract_project_lineage ----
+        result = extractor.extract_project_lineage()
+        parents = result["lineage"]["parents"]
+        children = result["lineage"]["children"]
+
+        model_id = "model.quoted_test_project.my_model"
+        source_id = "source.quoted_test_project.raw.source_table"
+
+        assert model_id in parents, f"Model not in parents map: {list(parents.keys())}"
+        model_lineage = parents[model_id]
+
+        # The quoted column key should preserve its original casing
+        assert "quotedColumnExample" in model_lineage, \
+            f"Expected 'quotedColumnExample' key in lineage, got: {list(model_lineage.keys())}"
+        assert "quotedcolumnexample" not in model_lineage, \
+            "Lowercased 'quotedcolumnexample' should NOT be a key"
+
+        # The unquoted column should be lowercased
+        assert "normal_col" in model_lineage, \
+            f"Expected 'normal_col' key in lineage, got: {list(model_lineage.keys())}"
+
+        # Verify the quoted column traces back to the source with correct case
+        quoted_parents = model_lineage["quotedColumnExample"]
+        assert len(quoted_parents) > 0, "Quoted column should have lineage parents"
+        assert quoted_parents[0]["dbt_node"] == source_id
+        assert quoted_parents[0]["column"] == "quotedColumnExample", \
+            f"Parent column should be 'quotedColumnExample', got: {quoted_parents[0]['column']}"
+
+        # Verify children map also has the correct case
+        assert source_id in children, f"Source not in children map: {list(children.keys())}"
+        source_children = children[source_id]
+        assert "quotedColumnExample" in source_children, \
+            f"Expected 'quotedColumnExample' in source children, got: {list(source_children.keys())}"
+
+        # ---- Phase 2: build_full_lineage (generator) ----
+        generator = DbtColibriReportGenerator(extractor)
+        full_lineage = generator.build_full_lineage()
+
+        # Check node columns in the output
+        model_node = full_lineage["nodes"][model_id]
+        assert "quotedColumnExample" in model_node["columns"], \
+            f"Expected 'quotedColumnExample' in output columns, got: {list(model_node['columns'].keys())}"
+        assert model_node["columns"]["quotedColumnExample"].get("quote") is True
+        assert model_node["columns"]["quotedColumnExample"].get("hasLineage") is True
+
+        assert "normal_col" in model_node["columns"], \
+            f"Expected 'normal_col' in output columns, got: {list(model_node['columns'].keys())}"
+
+        # Check that edges reference the correctly-cased column name
+        model_edges = [
+            e for e in full_lineage["lineage"]["edges"]
+            if e["target"] == model_id and e["targetColumn"] == "quotedColumnExample"
+        ]
+        assert len(model_edges) > 0, \
+            f"Expected edges targeting 'quotedColumnExample', found none. All edges: {full_lineage['lineage']['edges']}"
+        assert model_edges[0]["sourceColumn"] == "quotedColumnExample", \
+            f"Edge source column should be 'quotedColumnExample', got: {model_edges[0]['sourceColumn']}"

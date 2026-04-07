@@ -133,8 +133,12 @@ class DbtColumnLineageExtractor:
 
         For columns with ``quote: true`` in the manifest, the original casing
         is preserved.  All other columns are lowercased for consistency.
+        Handles column names that may arrive with surrounding double-quotes
+        from SQLGlot (e.g. ``'"quotedCol"'``).
         """
-        col_lower = column_name.lower()
+        # Strip surrounding double-quotes that SQLGlot may add
+        stripped = column_name.strip('"')
+        col_lower = stripped.lower()
         quoted = self._get_quoted_columns(node_id)
         if col_lower in quoted:
             return quoted[col_lower]
@@ -252,7 +256,22 @@ class DbtColumnLineageExtractor:
             if table_name not in schema_dict[db_name][schema_name]:
                 schema_dict[db_name][schema_name][table_name] = {}
 
-            schema_dict[db_name][schema_name][table_name].update(dbt_node.get_column_types())
+            col_types = dbt_node.get_column_types()
+
+            # For columns with quote=True in the manifest, wrap the key in
+            # double-quotes so SQLGlot's qualifier can match quoted identifiers.
+            quoted_cols = self._get_quoted_columns(dbt_node.unique_id)
+            if quoted_cols:
+                wrapped = {}
+                for col_name, col_type in col_types.items():
+                    if col_name.lower() in quoted_cols:
+                        original = quoted_cols[col_name.lower()]
+                        wrapped[f'"{original}"'] = col_type
+                    else:
+                        wrapped[col_name] = col_type
+                col_types = wrapped
+
+            schema_dict[db_name][schema_name][table_name].update(col_types)
 
         for node in catalog.get("nodes", {}).values():
             add_to_schema_dict(node)
