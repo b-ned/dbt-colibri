@@ -35,6 +35,7 @@ class DbtColumnLineageExtractor:
         self.schema_dict = self._generate_schema_dict_from_catalog()
         self.dialect = self._detect_adapter_type()
         # self.node_mapping = self._get_dict_mapping_full_table_name_to_dbt_node()
+        self._quoted_columns_lookup = self._build_quoted_columns_lookup()
         self.nodes_with_columns = self.build_nodes_with_columns()
         self._table_to_node = {k.lower(): v for k, v in self.nodes_with_columns.items()}
         # Store references to parent and child maps for easy access
@@ -100,6 +101,45 @@ class DbtColumnLineageExtractor:
         except PackageNotFoundError:
             return "unknown"
         
+    def _build_quoted_columns_lookup(self):
+        """Build a lookup of quoted columns (quote=True) across all manifest nodes.
+
+        Returns a dict of ``{node_id: {lower_col_name: original_col_name}}``
+        so that downstream code can preserve the original casing for columns
+        explicitly marked as quoted in the dbt manifest.
+        """
+        lookup = {}
+        for node_id, node_data in {**self.manifest.get("nodes", {}), **self.manifest.get("sources", {})}.items():
+            columns = node_data.get("columns")
+            if not columns:
+                continue
+            quoted = {}
+            for col_name, col_info in columns.items():
+                if col_info.get("quote") is True:
+                    quoted[col_name.lower()] = col_name
+            if quoted:
+                lookup[node_id] = quoted
+        return lookup
+
+    def _get_quoted_columns(self, node_id):
+        """Return ``{lower_col_name: original_col_name}`` for quoted columns of *node_id*."""
+        lookup = getattr(self, "_quoted_columns_lookup", None)
+        if lookup is None:
+            return {}
+        return lookup.get(node_id, {})
+
+    def _resolve_column_name(self, column_name, node_id):
+        """Return the properly-cased column name.
+
+        For columns with ``quote: true`` in the manifest, the original casing
+        is preserved.  All other columns are lowercased for consistency.
+        """
+        col_lower = column_name.lower()
+        quoted = self._get_quoted_columns(node_id)
+        if col_lower in quoted:
+            return quoted[col_lower]
+        return col_lower
+
     def _detect_adapter_type(self):
         """
         Detect the adapter type from the manifest metadata.
@@ -248,7 +288,7 @@ class DbtColumnLineageExtractor:
         else:
             self.logger.warning(f"Node {node} not found in catalog, maybe it's not materialized")
             return []
-        return [col.lower() for col in list(columns.keys())]
+        return [self._resolve_column_name(col, node) for col in columns.keys()]
 
     def _get_parent_nodes_catalog(self, model_info):
         parent_nodes = model_info["depends_on"]["nodes"]
@@ -437,11 +477,11 @@ class DbtColumnLineageExtractor:
     def get_dbt_node_from_sqlglot_table_node(self, node, model_node):
         if node.source.key != "table":
             raise ValueError(f"Node source is not a table, but {node.source.key}")
-        
+
         if not node.source.catalog and not node.source.db:
             return None
-            
-        column_name = node.name.split(".")[-1].lower()
+
+        column_name_raw = node.name.split(".")[-1]
 
         if self.dialect == 'clickhouse':
             table_name = f"{node.source.db}.{node.source.name}"
@@ -449,7 +489,7 @@ class DbtColumnLineageExtractor:
             table_name = self._table_key_from_sqlglot_table_node(node)
         else:
             table_name = f"{node.source.catalog}.{node.source.db}.{node.source.name}"
-        
+
         match = self._table_to_node.get(table_name.lower())
         if match:
             dbt_node = match["unique_id"]
@@ -480,6 +520,9 @@ class DbtColumnLineageExtractor:
                 dbt_node = f"_NOT_FOUND___{table_name.lower()}"
             # raise ValueError(f"Table {table_name} not found in node mapping")
 
+        # Preserve original case for quoted columns in the parent node
+        column_name = self._resolve_column_name(column_name_raw, dbt_node)
+
         return {"column": column_name, "dbt_node": dbt_node}
 
     def get_columns_lineage_from_sqlglot_lineage_map(self, lineage_map, picked_columns=[]):
@@ -499,7 +542,7 @@ class DbtColumnLineageExtractor:
                 columns_lineage[model_node_lower] = {}
 
             for column, node in columns.items():
-                column = column.lower()
+                column = self._resolve_column_name(column, model_node_lower)
                 if picked_columns and column not in picked_columns:
                     continue
 
@@ -689,8 +732,12 @@ class DbtColumnLineageExtractor:
 
                 columns = self._get_list_of_columns_for_a_dbt_node(model_node)
 
+                quoted_cols = self._get_quoted_columns(model_node)
+
                 for column_name in columns:
-                    column_key = column_name.lower()
+                    # Preserve original casing for quoted columns
+                    col_lower = column_name.lower()
+                    column_key = quoted_cols[col_lower] if col_lower in quoted_cols else col_lower
                     # Snapshot special columns
                     if model_info.get("resource_type") == "snapshot" and column_name in [
                         "dbt_valid_from",
@@ -706,7 +753,7 @@ class DbtColumnLineageExtractor:
 
                     def append_parent(parent_columns, lineage_type, _model_parents=model_parents, _column_key=column_key):
                         parent_model = parent_columns["dbt_node"]
-                        parent_col = parent_columns["column"].lower()
+                        parent_col = parent_columns["column"]
                         if parent_model == model_node:
                             return
                         if parent_columns not in _model_parents[_column_key]:

@@ -880,3 +880,160 @@ def test_nodes_with_null_relation_name_are_skipped():
 
         # The operation with null relation_name should NOT be present
         assert not any("on-run-end" in key for key in nodes_with_columns.keys())
+
+
+def test_quoted_columns_preserve_case():
+    """
+    Test that columns with quote=True in the manifest preserve their original
+    casing throughout the pipeline, while unquoted columns are still lowercased.
+
+    Regression test for: https://github.com/b-ned/dbt-colibri/issues/102
+    """
+    manifest = {
+        "metadata": {
+            "adapter_type": "snowflake"
+        },
+        "nodes": {
+            "model.test_project.quoted_test": {
+                "path": "models/quoted_test.sql",
+                "resource_type": "model",
+                "compiled_code": "select 'test' as \"quotedColumnExample\", 1 as normal_col",
+                "raw_code": "select 'test' as \"quotedColumnExample\", 1 as normal_col",
+                "depends_on": {"nodes": ["source.test_project.raw.raw_table"]},
+                "database": "TEST_DB",
+                "schema": "TEST_SCHEMA",
+                "name": "quoted_test",
+                "alias": "quoted_test",
+                "columns": {
+                    "quotedColumnExample": {
+                        "name": "quotedColumnExample",
+                        "description": "A quoted column",
+                        "quote": True,
+                        "data_type": "VARCHAR",
+                        "tags": []
+                    },
+                    "NORMAL_COL": {
+                        "name": "NORMAL_COL",
+                        "description": "A normal column",
+                        "data_type": "NUMBER",
+                        "tags": []
+                    }
+                },
+                "relation_name": "\"TEST_DB\".\"TEST_SCHEMA\".\"QUOTED_TEST\"",
+                "config": {"materialized": "table"}
+            }
+        },
+        "sources": {
+            "source.test_project.raw.raw_table": {
+                "path": "models/sources.yml",
+                "resource_type": "source",
+                "database": "TEST_DB",
+                "schema": "RAW",
+                "name": "raw_table",
+                "identifier": "raw_table",
+                "columns": {
+                    "quotedColumnExample": {
+                        "name": "quotedColumnExample",
+                        "description": "Source quoted column",
+                        "quote": True,
+                        "data_type": "VARCHAR",
+                        "tags": []
+                    },
+                    "NORMAL_COL": {
+                        "name": "NORMAL_COL",
+                        "description": "Source normal column",
+                        "data_type": "NUMBER",
+                        "tags": []
+                    }
+                },
+                "relation_name": "\"TEST_DB\".\"RAW\".\"RAW_TABLE\"",
+                "config": {"materialized": None}
+            }
+        },
+        "parent_map": {
+            "model.test_project.quoted_test": ["source.test_project.raw.raw_table"]
+        },
+        "child_map": {
+            "source.test_project.raw.raw_table": ["model.test_project.quoted_test"]
+        }
+    }
+
+    catalog = {
+        "nodes": {
+            "model.test_project.quoted_test": {
+                "unique_id": "model.test_project.quoted_test",
+                "metadata": {
+                    "database": "TEST_DB",
+                    "schema": "TEST_SCHEMA",
+                    "name": "QUOTED_TEST",
+                    "type": "table"
+                },
+                "columns": {
+                    "quotedColumnExample": {
+                        "type": "VARCHAR",
+                        "name": "quotedColumnExample",
+                        "index": 1,
+                        "comment": None
+                    },
+                    "NORMAL_COL": {
+                        "type": "NUMBER",
+                        "name": "NORMAL_COL",
+                        "index": 2,
+                        "comment": None
+                    }
+                }
+            }
+        },
+        "sources": {
+            "source.test_project.raw.raw_table": {
+                "unique_id": "source.test_project.raw.raw_table",
+                "metadata": {
+                    "database": "TEST_DB",
+                    "schema": "RAW",
+                    "name": "RAW_TABLE",
+                    "type": "table"
+                },
+                "columns": {
+                    "quotedColumnExample": {
+                        "type": "VARCHAR",
+                        "name": "quotedColumnExample",
+                        "index": 1,
+                        "comment": None
+                    },
+                    "NORMAL_COL": {
+                        "type": "NUMBER",
+                        "name": "NORMAL_COL",
+                        "index": 2,
+                        "comment": None
+                    }
+                }
+            }
+        }
+    }
+
+    with patch('dbt_colibri.utils.json_utils.read_json') as mock_read_json:
+        mock_read_json.side_effect = [manifest, catalog]
+
+        extractor = DbtColumnLineageExtractor(
+            manifest_path="dummy_path",
+            catalog_path="dummy_path"
+        )
+
+        # 1. Verify _get_quoted_columns returns the correct lookup
+        quoted = extractor._get_quoted_columns("model.test_project.quoted_test")
+        assert "quotedcolumnexample" in quoted
+        assert quoted["quotedcolumnexample"] == "quotedColumnExample"
+
+        # 2. Verify _resolve_column_name preserves case for quoted columns
+        assert extractor._resolve_column_name("quotedColumnExample", "model.test_project.quoted_test") == "quotedColumnExample"
+        assert extractor._resolve_column_name("QUOTEDCOLUMNEXAMPLE", "model.test_project.quoted_test") == "quotedColumnExample"
+
+        # 3. Verify _resolve_column_name lowercases non-quoted columns
+        assert extractor._resolve_column_name("NORMAL_COL", "model.test_project.quoted_test") == "normal_col"
+
+        # 4. Verify _get_list_of_columns_for_a_dbt_node preserves case for quoted columns
+        columns = extractor._get_list_of_columns_for_a_dbt_node("model.test_project.quoted_test")
+        assert "quotedColumnExample" in columns, f"Expected 'quotedColumnExample' in {columns}"
+        assert "normal_col" in columns, f"Expected 'normal_col' in {columns}"
+        # Should NOT have the lowercased version of the quoted column
+        assert "quotedcolumnexample" not in columns, f"Unexpected 'quotedcolumnexample' in {columns}"

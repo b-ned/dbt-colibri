@@ -55,9 +55,12 @@ class DbtColibriReportGenerator:
             if not attached_node:
                 continue
 
-            # Extract the column name (lowercase for consistency)
+            # Extract the column name, preserving case for quoted columns
             column_name = node_data.get("column_name")
-            column_key = column_name.lower() if column_name else "__model__"
+            if column_name:
+                column_key = self.extractor._resolve_column_name(column_name, attached_node)
+            else:
+                column_key = "__model__"
 
             # Extract test metadata
             test_metadata = node_data.get("test_metadata", {})
@@ -161,6 +164,8 @@ class DbtColibriReportGenerator:
         # enriching with manifest metadata when available.
         columns = {}
         manifest_columns = {}
+        # Build a lookup of quoted columns (quote=True) -> original name
+        quoted_cols = {}
         if node_data and node_data.get("columns"):
             for col, val in node_data["columns"].items():
                 col_meta = {
@@ -170,10 +175,15 @@ class DbtColibriReportGenerator:
                 col_tags = val.get("tags", [])
                 if col_tags:
                     col_meta["tags"] = col_tags
+                if val.get("quote") is True:
+                    col_meta["quote"] = True
+                    quoted_cols[col.lower()] = col
                 manifest_columns[col.lower()] = col_meta
         if catalog_data and catalog_data.get("columns"):
             for col, val in catalog_data["columns"].items():
                 col_lc = col.lower()
+                # Preserve original case for quoted columns
+                col_key = quoted_cols.get(col_lc, col_lc)
                 entry = {"dataType": val.get("type")}
                 if col_lc in manifest_columns:
                     if manifest_columns[col_lc].get("contractType") is not None:
@@ -182,7 +192,9 @@ class DbtColibriReportGenerator:
                         entry["description"] = manifest_columns[col_lc]["description"]
                     if manifest_columns[col_lc].get("tags"):
                         entry["tags"] = manifest_columns[col_lc]["tags"]
-                columns[col_lc] = entry
+                    if manifest_columns[col_lc].get("quote"):
+                        entry["quote"] = True
+                columns[col_key] = entry
 
         node_type = node_data.get("resource_type", "unknown")
         materialized = (node_data.get("config") or {}).get("materialized", "unknown")
