@@ -1,8 +1,7 @@
 import json
 import time
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
-import pytest
 
 from dbt_colibri.utils.version_check import (
     get_update_message,
