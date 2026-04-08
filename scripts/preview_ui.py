@@ -22,7 +22,7 @@ for version in versions:
         catalog_path=catalog_path
     )
 
-    report_generator = DbtColibriReportGenerator(extractor)
+    report_generator = DbtColibriReportGenerator(extractor, disable_telemetry=True)
     report_generator.generate_report(output_dir=output_dir)
 
     print(f"✔ Done with {version}, results in {output_dir}")
