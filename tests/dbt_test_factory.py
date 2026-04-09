@@ -18,11 +18,10 @@ Quoted column case-sensitivity (SQLGlot qualify behaviour):
 from __future__ import annotations
 
 import copy
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
 from unittest.mock import patch
 
-import sqlglot
 
 
 # ---------------------------------------------------------------------------
@@ -152,7 +151,6 @@ def build_test_artifacts(
     """
     info = DIALECTS[dialect]
     adapter_type = info.adapter_type
-    sqlglot_dialect = info.sqlglot_dialect or info.name
 
     if model_columns is None:
         model_columns = copy.deepcopy(source_columns)
