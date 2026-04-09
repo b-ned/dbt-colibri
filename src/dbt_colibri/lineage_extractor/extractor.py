@@ -8,6 +8,20 @@ from importlib.metadata import version, PackageNotFoundError
 import gc
 
 
+def _normalize_column_name(name: str) -> str:
+    """Normalize a column name for lineage resolution.
+
+    - Strips surrounding single/double quotes.
+    - Removes PostgreSQL-style type casts (``::type``).
+    - Strips leading ``$`` (Snowflake session variable prefix).
+    """
+    name = name.strip('"').strip("'")
+    name = re.sub(r"::\s*\w+$", "", name)
+    if name.startswith("$"):
+        name = name[1:]
+    return name
+
+
 def get_select_expressions(expr: exp.Expression) -> list[exp.Expression]:
     if isinstance(expr, exp.Select):
         return expr.expressions
@@ -35,6 +49,7 @@ class DbtColumnLineageExtractor:
         self.schema_dict = self._generate_schema_dict_from_catalog()
         self.dialect = self._detect_adapter_type()
         # self.node_mapping = self._get_dict_mapping_full_table_name_to_dbt_node()
+        self._quoted_columns_lookup = self._build_quoted_columns_lookup()
         self.nodes_with_columns = self.build_nodes_with_columns()
         self._table_to_node = {k.lower(): v for k, v in self.nodes_with_columns.items()}
         # Store references to parent and child maps for easy access
@@ -100,6 +115,61 @@ class DbtColumnLineageExtractor:
         except PackageNotFoundError:
             return "unknown"
         
+    # Dialects where ``quote: true`` means the identifier is case-sensitive.
+    _CASE_SENSITIVE_QUOTE_DIALECTS = frozenset({
+        "snowflake", "postgres", "oracle", "clickhouse",
+    })
+
+    def _build_quoted_columns_lookup(self):
+        """Build a lookup of quoted columns (quote=True) across all manifest nodes.
+
+        Returns a dict of ``{node_id: {lower_col_name: original_col_name}}``
+        so that downstream code can preserve the original casing for columns
+        explicitly marked as quoted in the dbt manifest.
+
+        Only populated for dialects where quoting is case-sensitive (e.g.
+        Snowflake, Postgres, Oracle, ClickHouse).  On case-insensitive
+        dialects (BigQuery, DuckDB, etc.) quoting is used to escape reserved
+        words but does not affect casing, so the lookup stays empty.
+        """
+        if self.dialect not in self._CASE_SENSITIVE_QUOTE_DIALECTS:
+            return {}
+        lookup = {}
+        for node_id, node_data in {**self.manifest.get("nodes", {}), **self.manifest.get("sources", {})}.items():
+            columns = node_data.get("columns")
+            if not columns:
+                continue
+            quoted = {}
+            for col_name, col_info in columns.items():
+                if col_info.get("quote") is True:
+                    quoted[col_name.lower()] = col_name
+            if quoted:
+                lookup[node_id] = quoted
+        return lookup
+
+    def _get_quoted_columns(self, node_id):
+        """Return ``{lower_col_name: original_col_name}`` for quoted columns of *node_id*."""
+        lookup = getattr(self, "_quoted_columns_lookup", None)
+        if lookup is None:
+            return {}
+        return lookup.get(node_id, {})
+
+    def _resolve_column_name(self, column_name, node_id):
+        """Return the properly-cased column name.
+
+        For columns with ``quote: true`` in the manifest, the original casing
+        is preserved.  All other columns are lowercased for consistency.
+        Handles column names that may arrive with surrounding double-quotes
+        from SQLGlot (e.g. ``'"quotedCol"'``).
+        """
+        # Strip surrounding double-quotes that SQLGlot may add
+        stripped = column_name.strip('"')
+        col_lower = stripped.lower()
+        quoted = self._get_quoted_columns(node_id)
+        if col_lower in quoted:
+            return quoted[col_lower]
+        return col_lower
+
     def _detect_adapter_type(self):
         """
         Detect the adapter type from the manifest metadata.
@@ -212,7 +282,22 @@ class DbtColumnLineageExtractor:
             if table_name not in schema_dict[db_name][schema_name]:
                 schema_dict[db_name][schema_name][table_name] = {}
 
-            schema_dict[db_name][schema_name][table_name].update(dbt_node.get_column_types())
+            col_types = dbt_node.get_column_types()
+
+            # For columns with quote=True in the manifest, wrap the key in
+            # double-quotes so SQLGlot's qualifier can match quoted identifiers.
+            quoted_cols = self._get_quoted_columns(dbt_node.unique_id)
+            if quoted_cols:
+                wrapped = {}
+                for col_name, col_type in col_types.items():
+                    if col_name.lower() in quoted_cols:
+                        original = quoted_cols[col_name.lower()]
+                        wrapped[f'"{original}"'] = col_type
+                    else:
+                        wrapped[col_name] = col_type
+                col_types = wrapped
+
+            schema_dict[db_name][schema_name][table_name].update(col_types)
 
         for node in catalog.get("nodes", {}).values():
             add_to_schema_dict(node)
@@ -248,7 +333,7 @@ class DbtColumnLineageExtractor:
         else:
             self.logger.warning(f"Node {node} not found in catalog, maybe it's not materialized")
             return []
-        return [col.lower() for col in list(columns.keys())]
+        return [self._resolve_column_name(col, node) for col in columns.keys()]
 
     def _get_parent_nodes_catalog(self, model_info):
         parent_nodes = model_info["depends_on"]["nodes"]
@@ -277,26 +362,31 @@ class DbtColumnLineageExtractor:
 
         return sql
 
+    @staticmethod
+    def _schema_has_quoted_keys(schema):
+        """Return True if any column key in *schema* is double-quote-wrapped."""
+        for db in schema.values():
+            for sch in db.values():
+                for tbl in sch.values():
+                    if any(k.startswith('"') for k in tbl):
+                        return True
+        return False
+
     def _extract_lineage_for_model(self, model_sql, schema, model_node, resource_type, selected_columns=[]):
         lineage_map = {}
         model_sql_for_parse = self._sanitize_sql_for_parsing(model_sql)
         parsed_model_sql = maybe_parse(model_sql_for_parse, dialect=self.dialect)
         # sqlglot does not unfold * to schema when the schema has quotes, or upper (for BigQuery)
-        if self.dialect == "postgres":
+        # Skip remove_quotes when the schema contains quoted column keys, as
+        # stripping AST quotes prevents SQLGlot from matching case-sensitive columns.
+        if self.dialect == "postgres" and not self._schema_has_quoted_keys(schema):
             parsed_model_sql = parsing_utils.remove_quotes(parsed_model_sql)
         if self.dialect == "bigquery":
             parsed_model_sql = parsing_utils.remove_upper(parsed_model_sql)
         qualified_expr, scope = prepare_scope(parsed_model_sql, schema=schema, dialect=self.dialect)
-        def normalize_column_name(name: str) -> str:
-            name = name.strip('"').strip("'")
-            # Remove type casts like '::date' or '::timestamp'
-            name = re.sub(r"::\s*\w+$", "", name)
-            if name.startswith("$"):
-                name = name[1:]
-            return name
 
         for column_name in selected_columns:
-            normalized_column = normalize_column_name(column_name)
+            normalized_column = _normalize_column_name(column_name)
             if resource_type == "snapshot" and column_name in ["dbt_valid_from", "dbt_valid_to", "dbt_updated_at", "dbt_scd_id"]:
                 self.logger.debug(f"Skipping special snapshot column {column_name}")
                 lineage_map[column_name] = []
@@ -437,11 +527,11 @@ class DbtColumnLineageExtractor:
     def get_dbt_node_from_sqlglot_table_node(self, node, model_node):
         if node.source.key != "table":
             raise ValueError(f"Node source is not a table, but {node.source.key}")
-        
+
         if not node.source.catalog and not node.source.db:
             return None
-            
-        column_name = node.name.split(".")[-1].lower()
+
+        column_name_raw = node.name.split(".")[-1]
 
         if self.dialect == 'clickhouse':
             table_name = f"{node.source.db}.{node.source.name}"
@@ -449,7 +539,7 @@ class DbtColumnLineageExtractor:
             table_name = self._table_key_from_sqlglot_table_node(node)
         else:
             table_name = f"{node.source.catalog}.{node.source.db}.{node.source.name}"
-        
+
         match = self._table_to_node.get(table_name.lower())
         if match:
             dbt_node = match["unique_id"]
@@ -480,6 +570,9 @@ class DbtColumnLineageExtractor:
                 dbt_node = f"_NOT_FOUND___{table_name.lower()}"
             # raise ValueError(f"Table {table_name} not found in node mapping")
 
+        # Preserve original case for quoted columns in the parent node
+        column_name = self._resolve_column_name(column_name_raw, dbt_node)
+
         return {"column": column_name, "dbt_node": dbt_node}
 
     def get_columns_lineage_from_sqlglot_lineage_map(self, lineage_map, picked_columns=[]):
@@ -499,7 +592,7 @@ class DbtColumnLineageExtractor:
                 columns_lineage[model_node_lower] = {}
 
             for column, node in columns.items():
-                column = column.lower()
+                column = self._resolve_column_name(column, model_node_lower)
                 if picked_columns and column not in picked_columns:
                     continue
 
@@ -528,9 +621,32 @@ class DbtColumnLineageExtractor:
 
 
     @staticmethod
+    def _ci_get(mapping, key):
+        """Case-insensitive dict key lookup. Return the value if *key* (lowered)
+        matches any key in *mapping*, otherwise ``None``."""
+        if key in mapping:
+            return mapping[key]
+        key_lower = key.lower()
+        for k, v in mapping.items():
+            if k.lower() == key_lower:
+                return v
+        return None
+
+    @staticmethod
+    def _ci_key(mapping, key):
+        """Return the actual key in *mapping* that matches *key* case-insensitively,
+        or *key* itself if not found."""
+        if key in mapping:
+            return key
+        key_lower = key.lower()
+        for k in mapping:
+            if k.lower() == key_lower:
+                return k
+        return key
+
+    @staticmethod
     def find_all_related(lineage_map, model_node, column, visited=None):
         """Find all related columns in lineage_map that connect to model_node.column."""
-        column = column.lower()
         model_node = model_node.lower()
         if visited is None:
             visited = set()
@@ -538,20 +654,22 @@ class DbtColumnLineageExtractor:
         related = {}
 
         # Check if the model_node exists in lineage_map
-        if model_node not in lineage_map:
+        model_entry = DbtColumnLineageExtractor._ci_get(lineage_map, model_node)
+        if model_entry is None:
             return related
 
-        # Check if the column exists in the model_node
-        if column not in lineage_map[model_node]:
+        # Case-insensitive column lookup to support quoted (mixed-case) keys
+        column_key = DbtColumnLineageExtractor._ci_key(model_entry, column)
+        if column_key not in model_entry:
             return related
 
         # Process each related node
-        for related_node in lineage_map[model_node][column]:
+        for related_node in model_entry[column_key]:
             related_model = related_node["dbt_node"].lower()
-            related_column = related_node["column"].lower()
+            related_column = related_node["column"]
 
-            if (related_model, related_column) not in visited:
-                visited.add((related_model, related_column))
+            if (related_model, related_column.lower()) not in visited:
+                visited.add((related_model, related_column.lower()))
 
                 if related_model not in related:
                     related[related_model] = []
@@ -579,27 +697,28 @@ class DbtColumnLineageExtractor:
     def find_all_related_with_structure(lineage_map, model_node, column, visited=None):
         """Find all related columns with hierarchical structure."""
         model_node = model_node.lower()
-        column = column.lower()
         if visited is None:
             visited = set()
 
         # Initialize the related structure for the current node and column.
         related_structure = {}
 
-        # Return empty if model or column doesn't exist
-        if model_node not in lineage_map:
+        # Case-insensitive lookup for model and column
+        model_entry = DbtColumnLineageExtractor._ci_get(lineage_map, model_node)
+        if model_entry is None:
             return related_structure
 
-        if column not in lineage_map[model_node]:
+        column_key = DbtColumnLineageExtractor._ci_key(model_entry, column)
+        if column_key not in model_entry:
             return related_structure
 
         # Process each related node
-        for related_node in lineage_map[model_node][column]:
+        for related_node in model_entry[column_key]:
             related_model = related_node["dbt_node"].lower()
-            related_column = related_node["column"].lower()
+            related_column = related_node["column"]
 
-            if (related_model, related_column) not in visited:
-                visited.add((related_model, related_column))
+            if (related_model, related_column.lower()) not in visited:
+                visited.add((related_model, related_column.lower()))
 
                 # Recursively get the structure for each related node
                 subsequent_structure = DbtColumnLineageExtractor.find_all_related_with_structure(
@@ -670,27 +789,23 @@ class DbtColumnLineageExtractor:
                 # Parse and qualify once per model
                 model_sql_for_parse = self._sanitize_sql_for_parsing(model_sql)
                 parsed_model_sql = maybe_parse(model_sql_for_parse, dialect=self.dialect)
-                if self.dialect == "postgres":
+                if self.dialect == "postgres" and not self._schema_has_quoted_keys(schema):
                     parsed_model_sql = parsing_utils.remove_quotes(parsed_model_sql)
                 if self.dialect == "bigquery":
                     parsed_model_sql = parsing_utils.remove_upper(parsed_model_sql)
                 qualified_expr, scope = prepare_scope(parsed_model_sql, schema=schema, dialect=self.dialect)
-
-                def normalize_column_name(name: str) -> str:
-                    name = name.strip('"').strip("'")
-                    name = re.sub(r"::\s*\w+$", "", name)
-                    if name.startswith("$"):
-                        name = name[1:]
-                        
-                    return name
 
                 # Initialize parents entry for this model
                 model_parents: dict = {}
 
                 columns = self._get_list_of_columns_for_a_dbt_node(model_node)
 
+                quoted_cols = self._get_quoted_columns(model_node)
+
                 for column_name in columns:
-                    column_key = column_name.lower()
+                    # Preserve original casing for quoted columns
+                    col_lower = column_name.lower()
+                    column_key = quoted_cols[col_lower] if col_lower in quoted_cols else col_lower
                     # Snapshot special columns
                     if model_info.get("resource_type") == "snapshot" and column_name in [
                         "dbt_valid_from",
@@ -706,7 +821,7 @@ class DbtColumnLineageExtractor:
 
                     def append_parent(parent_columns, lineage_type, _model_parents=model_parents, _column_key=column_key):
                         parent_model = parent_columns["dbt_node"]
-                        parent_col = parent_columns["column"].lower()
+                        parent_col = parent_columns["column"]
                         if parent_model == model_node:
                             return
                         if parent_columns not in _model_parents[_column_key]:
@@ -718,7 +833,7 @@ class DbtColumnLineageExtractor:
                         )
 
                     try:
-                        normalized_column = normalize_column_name(column_name)
+                        normalized_column = _normalize_column_name(column_name)
                         lineage_node = lineage(
                             normalized_column,
                             qualified_expr,
@@ -743,7 +858,7 @@ class DbtColumnLineageExtractor:
                                 alias = expr.alias_or_name
                                 if alias:
                                     alias_expr_map[alias.lower()] = expr
-                            expr = alias_expr_map.get(normalize_column_name(column_name).lower())
+                            expr = alias_expr_map.get(_normalize_column_name(column_name).lower())
                             self.logger.debug(f"Available aliases in query: {list(alias_expr_map.keys())}")
                             if expr:
                                 upstream_columns = extract_column_refs(expr)
@@ -794,7 +909,7 @@ class DbtColumnLineageExtractor:
                                             entries.append(parent_columns)
                                             # Update children map
                                             parent_model = parent_columns["dbt_node"]
-                                            parent_col = parent_columns["column"].lower()
+                                            parent_col = parent_columns["column"]
                                             children.setdefault(parent_model, {}).setdefault(parent_col, []).append(
                                                 {"column": key, "dbt_node": model_node}
                                             )
