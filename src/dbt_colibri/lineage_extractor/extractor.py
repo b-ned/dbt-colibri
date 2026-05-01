@@ -39,13 +39,17 @@ def extract_column_refs(expr: exp.Expression) -> list[exp.Column]:
     return list(expr.find_all(exp.Column))
 
 class DbtColumnLineageExtractor:
+    # CTE name pattern dbt uses when inlining ephemeral models into a downstream
+    # model's compiled SQL.
+    _EPHEMERAL_CTE_PREFIX = "__dbt__cte__"
+
     def __init__(self, manifest_path, catalog_path, selected_models=[]):
         # Set up logging
         self.logger = logging.getLogger("colibri")
 
         # Read manifest and catalog files
         self.manifest = json_utils.read_json(manifest_path)
-        self.catalog = json_utils.read_json(catalog_path)      
+        self.catalog = json_utils.read_json(catalog_path)
         self.schema_dict = self._generate_schema_dict_from_catalog()
         self.dialect = self._detect_adapter_type()
         # self.node_mapping = self._get_dict_mapping_full_table_name_to_dbt_node()
@@ -55,6 +59,18 @@ class DbtColumnLineageExtractor:
         # Store references to parent and child maps for easy access
         self.parent_map = self.manifest.get("parent_map", {})
         self.child_map = self.manifest.get("child_map", {})
+
+        # Ephemeral models don't appear in catalog.json, so we have to derive
+        # their column lists from compiled SQL.  Build a registry up-front; the
+        # actual column resolution is lazy so it only runs for ephemerals that
+        # are actually referenced by a model under analysis.
+        self._ephemeral_registry = self._build_ephemeral_registry()
+        # Reverse map from CTE name -> ephemeral unique_id, for the
+        # `__dbt__cte__<name>` re-attribution pass.
+        self._ephemeral_cte_to_node = {
+            f"{self._EPHEMERAL_CTE_PREFIX}{entry['name']}".lower(): nid
+            for nid, entry in self._ephemeral_registry.items()
+        }
         # Process selected models
         self.colibri_version = self._get_colibri_version()
         # Respect user-provided selection; otherwise default to all model/snapshot nodes
@@ -330,22 +346,250 @@ class DbtColumnLineageExtractor:
             columns = self.catalog["nodes"][node]["columns"]
         elif node in self.catalog["sources"]:
             columns = self.catalog["sources"][node]["columns"]
+        elif node in self._ephemeral_registry:
+            columns = self._resolve_ephemeral_columns(node)
+            if not columns:
+                self.logger.warning(
+                    f"Ephemeral node {node} produced no columns from SQL parsing"
+                )
+            return [self._resolve_column_name(col, node) for col in columns.keys()]
         else:
             self.logger.warning(f"Node {node} not found in catalog, maybe it's not materialized")
             return []
         return [self._resolve_column_name(col, node) for col in columns.keys()]
 
     def _get_parent_nodes_catalog(self, model_info):
-        parent_nodes = model_info["depends_on"]["nodes"]
+        """Build the parent-catalog dict used for schema qualification.
+
+        Adds the model's direct parents and — for ephemeral parents whose
+        compiled bodies are inlined into the consuming model's SQL — also
+        their transitive non-ephemeral ancestors, since those underlying tables
+        appear by name inside the inlined CTE bodies and the qualifier needs
+        their column lists.
+        """
+        parent_nodes = list(model_info["depends_on"]["nodes"])
         parent_catalog = {"nodes": {}, "sources": {}}
-        for parent in parent_nodes:
-            if parent in self.catalog["nodes"]:
+        seen = set()
+        queue = list(parent_nodes)
+        while queue:
+            parent = queue.pop()
+            if parent in seen:
+                continue
+            seen.add(parent)
+            if parent in self.catalog.get("nodes", {}):
                 parent_catalog["nodes"][parent] = self.catalog["nodes"][parent]
-            elif parent in self.catalog["sources"]:
+            elif parent in self.catalog.get("sources", {}):
                 parent_catalog["sources"][parent] = self.catalog["sources"][parent]
+            elif parent in self._ephemeral_registry:
+                parent_catalog["nodes"][parent] = self._ephemeral_catalog_entry(parent)
+                # Walk through to the ephemeral's own parents so the inlined
+                # CTE bodies can qualify their references.
+                queue.extend(self._ephemeral_registry[parent]["depends_on"])
             else:
-                self.logger.warning(f"Parent model {parent} not found in catalog")
+                if parent in parent_nodes:
+                    self.logger.warning(f"Parent model {parent} not found in catalog")
         return parent_catalog
+
+    # ------------------------------------------------------------------
+    # Ephemeral model support
+    # ------------------------------------------------------------------
+
+    def _build_ephemeral_registry(self):
+        """Index every ephemeral model from the manifest.
+
+        Stores enough metadata to (a) resolve columns from SQL on demand and
+        (b) inject synthesized schema entries for downstream qualification.
+        """
+        registry = {}
+        for node_id, node in self.manifest.get("nodes", {}).items():
+            if node.get("config", {}).get("materialized") != "ephemeral":
+                continue
+            registry[node_id] = {
+                "unique_id": node_id,
+                "database": node.get("database"),
+                "schema": node.get("schema"),
+                "name": node.get("alias") or node.get("identifier") or node.get("name"),
+                "compiled_code": node.get("compiled_code") or "",
+                "depends_on": (node.get("depends_on") or {}).get("nodes", []),
+                # Cached column dict, populated by _resolve_ephemeral_columns().
+                "columns": None,
+            }
+        return registry
+
+    def _ephemeral_catalog_entry(self, node_id):
+        """Return a catalog-shaped dict for an ephemeral node."""
+        entry = self._ephemeral_registry[node_id]
+        columns = self._resolve_ephemeral_columns(node_id)
+        return {
+            "unique_id": node_id,
+            "metadata": {
+                "database": entry["database"],
+                "schema": entry["schema"],
+                "name": entry["name"],
+                "type": "ephemeral",
+            },
+            "columns": columns,
+        }
+
+    def _resolve_ephemeral_columns(self, node_id, _visiting=None):
+        """Derive the projected columns of an ephemeral model from its compiled SQL.
+
+        Recursive: ephemeral A may project ``select * from ephemeral B``; we
+        resolve B first so its column list expands A's star.  Cycles are
+        defended against with a visiting set.
+        """
+        entry = self._ephemeral_registry.get(node_id)
+        if entry is None:
+            return {}
+        if entry["columns"] is not None:
+            return entry["columns"]
+
+        _visiting = _visiting or set()
+        if node_id in _visiting:
+            self.logger.warning(
+                f"Ephemeral cycle detected at {node_id}; returning empty columns"
+            )
+            return {}
+        _visiting = _visiting | {node_id}
+
+        compiled = entry["compiled_code"]
+        if not compiled:
+            entry["columns"] = {}
+            return entry["columns"]
+
+        # Build the schema dict of this ephemeral's parents.  Catalog parents
+        # contribute directly; ephemeral parents recurse.
+        parent_catalog = {"nodes": {}, "sources": {}}
+        for parent in entry["depends_on"]:
+            if parent in self.catalog.get("nodes", {}):
+                parent_catalog["nodes"][parent] = self.catalog["nodes"][parent]
+            elif parent in self.catalog.get("sources", {}):
+                parent_catalog["sources"][parent] = self.catalog["sources"][parent]
+            elif parent in self._ephemeral_registry:
+                # Recurse, then synthesize the catalog entry from the result.
+                self._resolve_ephemeral_columns(parent, _visiting=_visiting)
+                parent_catalog["nodes"][parent] = self._ephemeral_catalog_entry(parent)
+        schema = self._generate_schema_dict_from_catalog(parent_catalog)
+
+        try:
+            sql = self._sanitize_sql_for_parsing(compiled)
+            parsed = maybe_parse(sql, dialect=self.dialect)
+            if self.dialect == "postgres" and not self._schema_has_quoted_keys(schema):
+                parsed = parsing_utils.remove_quotes(parsed)
+            if self.dialect == "bigquery":
+                parsed = parsing_utils.remove_upper(parsed)
+            qualified, _ = prepare_scope(parsed, schema=schema, dialect=self.dialect)
+        except Exception as e:
+            self.logger.warning(
+                f"Failed to qualify ephemeral {node_id}: {e}; columns will be empty"
+            )
+            entry["columns"] = {}
+            return entry["columns"]
+
+        # The outermost SELECT (or the SELECT inside a WITH wrapper) carries
+        # the projected columns.  For UNION-shaped ephemerals (`select *
+        # from a union all select * from b`) the top expression is a
+        # SetOperation and qualify expands the * inside each branch.
+        outer = self._outer_select(qualified)
+        columns = {}
+        if outer is not None:
+            for sel in outer.expressions:
+                # qualify with expand_stars=True turns `*` into individual
+                # columns; if it can't (e.g. star against an unresolvable
+                # parent) the literal `*` survives — skip it with a warning.
+                if isinstance(sel, exp.Star) or sel.is_star:
+                    self.logger.warning(
+                        f"Ephemeral {node_id} contains an unexpanded * — "
+                        f"some parent lacked column information"
+                    )
+                    continue
+                name = sel.alias_or_name
+                if not name:
+                    continue
+                columns[name] = {
+                    "type": "UNKNOWN",
+                    "name": name,
+                    "index": len(columns) + 1,
+                    "comment": None,
+                }
+
+        entry["columns"] = columns
+        return columns
+
+    @staticmethod
+    def _outer_select(expr):
+        """Return the top-level node whose ``expressions`` are the projected columns.
+
+        For plain ``SELECT`` queries this is the Select itself.  For set
+        operations (``UNION``/``EXCEPT``/``INTERSECT``) the projection is
+        defined by the leftmost branch — sqlglot stores it in ``args["this"]``.
+        """
+        if isinstance(expr, exp.Select):
+            return expr
+        if isinstance(expr, exp.SetOperation):
+            # Recurse into the left branch until we hit a Select.
+            return DbtColumnLineageExtractor._outer_select(expr.args.get("this"))
+        inner = expr.args.get("this") if hasattr(expr, "args") else None
+        if isinstance(inner, (exp.Select, exp.SetOperation)):
+            return DbtColumnLineageExtractor._outer_select(inner)
+        if hasattr(expr, "find"):
+            sel = expr.find(exp.Select)
+            if sel is not None:
+                return sel
+        return None
+
+    def _match_ephemeral_cte(self, node_name):
+        """If *node_name* refers into a ``__dbt__cte__<eph>`` CTE, return the
+        ephemeral's unique_id; otherwise None.
+
+        ``Node.name`` from sqlglot's lineage walk is shaped like
+        ``"<scope_name>.<column>"`` when the walker descends into a CTE, where
+        ``<scope_name>`` is the CTE alias.  dbt names the inlined ephemeral CTE
+        ``__dbt__cte__<model_name>``.
+        """
+        if not node_name or "." not in node_name:
+            return None
+        alias = node_name.rsplit(".", 1)[0].lower()
+        # The walker may be deeper in a chain (e.g. ``__dbt__cte__a.col`` then a
+        # later descent yields ``__dbt__cte__a.col.something``); in that case
+        # only the leftmost dotted segment is the CTE alias.
+        head = alias.split(".")[0]
+        return self._ephemeral_cte_to_node.get(head)
+
+    def _walk_with_ephemeral_attribution(self, root_node):
+        """Walk a sqlglot lineage Node tree, yielding either real-table refs or
+        ephemeral attributions.
+
+        Yields tuples:
+          - ``("table", node)``: an existing leaf table reference.
+          - ``("ephemeral", {"dbt_node": eph_id, "column": col})``: a CTE node
+            whose alias matches ``__dbt__cte__<ephemeral>``.  The walker does
+            **not** descend into this subtree — the ephemeral itself is
+            processed as a top-level model and carries its own lineage.
+
+        The caller decides how to record each yielded item.
+        """
+        if root_node is None:
+            return
+
+        def visit(node):
+            if node is None:
+                return
+            ephemeral_id = self._match_ephemeral_cte(getattr(node, "name", None))
+            if ephemeral_id is not None:
+                col = node.name.rsplit(".", 1)[-1]
+                yield (
+                    "ephemeral",
+                    {"dbt_node": ephemeral_id, "column": col},
+                )
+                return  # prune deeper traversal
+            source = getattr(node, "source", None)
+            if source is not None and getattr(source, "key", None) == "table":
+                yield ("table", node)
+            for d in getattr(node, "downstream", []) or []:
+                yield from visit(d)
+
+        yield from visit(root_node)
     
     def _sanitize_sql_for_parsing(self, sql):
         # Placeholder for any SQL sanitization needed before parsing
@@ -842,11 +1086,16 @@ class DbtColumnLineageExtractor:
                             scope=scope,
                         )
 
-                        for n in lineage_node.walk():
-                            if n.source.key == "table":
-                                parent_columns = self.get_dbt_node_from_sqlglot_table_node(n, model_node)
+                        for kind, payload in self._walk_with_ephemeral_attribution(lineage_node):
+                            if kind == "table":
+                                parent_columns = self.get_dbt_node_from_sqlglot_table_node(payload, model_node)
                                 if parent_columns:
                                     append_parent(parent_columns, lineage_node.lineage_type)
+                            elif kind == "ephemeral":
+                                # CTE-boundary attribution: stop at the ephemeral
+                                # so it shows up as a direct parent of the
+                                # consuming column.
+                                append_parent(dict(payload), lineage_node.lineage_type)
 
                     except SqlglotError:
                         # Fallback: try to parse as expression and extract columns
@@ -871,11 +1120,13 @@ class DbtColumnLineageExtractor:
                                             dialect=self.dialect,
                                             scope=scope,
                                         )
-                                        for n in sub_node.walk():
-                                            if n.source.key == "table":
-                                                parent_columns = self.get_dbt_node_from_sqlglot_table_node(n, model_node)
+                                        for kind, payload in self._walk_with_ephemeral_attribution(sub_node):
+                                            if kind == "table":
+                                                parent_columns = self.get_dbt_node_from_sqlglot_table_node(payload, model_node)
                                                 if parent_columns:
                                                     append_parent(parent_columns, sub_node.lineage_type)
+                                            elif kind == "ephemeral":
+                                                append_parent(dict(payload), sub_node.lineage_type)
                                     except SqlglotError as e_inner:
                                         self.logger.error(
                                             f"Could not resolve lineage for '{col.name}' in alias '{column_name}': {e_inner}"
@@ -900,19 +1151,22 @@ class DbtColumnLineageExtractor:
                         for struct_node in nodes_list:
                             if struct_node is None:
                                 continue
-                            for n in struct_node.walk():
-                                if n.source.key == "table":
-                                    parent_columns = self.get_dbt_node_from_sqlglot_table_node(n, model_node)
-                                    if parent_columns and parent_columns["dbt_node"] != model_node:
-                                        parent_columns["lineage_type"] = edge_type
-                                        if parent_columns not in entries:
-                                            entries.append(parent_columns)
-                                            # Update children map
-                                            parent_model = parent_columns["dbt_node"]
-                                            parent_col = parent_columns["column"]
-                                            children.setdefault(parent_model, {}).setdefault(parent_col, []).append(
-                                                {"column": key, "dbt_node": model_node}
-                                            )
+                            for kind, payload in self._walk_with_ephemeral_attribution(struct_node):
+                                parent_columns = None
+                                if kind == "table":
+                                    parent_columns = self.get_dbt_node_from_sqlglot_table_node(payload, model_node)
+                                elif kind == "ephemeral":
+                                    parent_columns = dict(payload)
+                                if parent_columns and parent_columns["dbt_node"] != model_node:
+                                    parent_columns["lineage_type"] = edge_type
+                                    if parent_columns not in entries:
+                                        entries.append(parent_columns)
+                                        # Update children map
+                                        parent_model = parent_columns["dbt_node"]
+                                        parent_col = parent_columns["column"]
+                                        children.setdefault(parent_model, {}).setdefault(parent_col, []).append(
+                                            {"column": key, "dbt_node": model_node}
+                                        )
                         if entries:
                             model_parents[key] = entries
                 except Exception as e:
