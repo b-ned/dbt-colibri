@@ -122,7 +122,17 @@ class DbtColumnLineageExtractor:
         self.unmaterialized_model_count = len(non_materialized)
 
         if non_materialized:
-            msg = f"{len(non_materialized)}/{len(all_models)} models are not materialized (missing from catalog)."
+            ephemeral_missing = {
+                nid for nid in non_materialized
+                if self.manifest["nodes"][nid].get("config", {}).get("materialized") == "ephemeral"
+            }
+            other_missing = non_materialized - ephemeral_missing
+            parts = []
+            if ephemeral_missing:
+                parts.append(f"{len(ephemeral_missing)} ephemeral (columns derived from SQL)")
+            if other_missing:
+                parts.append(f"{len(other_missing)} non-ephemeral missing from catalog")
+            msg = f"{len(non_materialized)}/{len(all_models)} models not in catalog: {', '.join(parts)}."
             self.logger.error(msg)
 
     def _get_colibri_version(self):

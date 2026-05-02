@@ -195,6 +195,22 @@ class DbtColibriReportGenerator:
                     if manifest_columns[col_lc].get("quote"):
                         entry["quote"] = True
                 columns[col_key] = entry
+        elif not catalog_data and node_id in self.extractor._ephemeral_registry:
+            resolved = self.extractor._resolve_ephemeral_columns(node_id)
+            for col, val in resolved.items():
+                col_lc = col.lower()
+                col_key = quoted_cols.get(col_lc, col_lc)
+                entry = {"dataType": val.get("type", "UNKNOWN")}
+                if col_lc in manifest_columns:
+                    if manifest_columns[col_lc].get("contractType") is not None:
+                        entry["contractType"] = manifest_columns[col_lc]["contractType"]
+                    if manifest_columns[col_lc].get("description") is not None:
+                        entry["description"] = manifest_columns[col_lc]["description"]
+                    if manifest_columns[col_lc].get("tags"):
+                        entry["tags"] = manifest_columns[col_lc]["tags"]
+                    if manifest_columns[col_lc].get("quote"):
+                        entry["quote"] = True
+                columns[col_key] = entry
 
         node_type = node_data.get("resource_type", "unknown")
         materialized = (node_data.get("config") or {}).get("materialized", "unknown")
