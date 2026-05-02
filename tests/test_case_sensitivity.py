@@ -12,15 +12,19 @@ def test_locations_column_lineage_case_sensitivity(dbt_valid_test_data_dir):
     """Test that model.jaffle_shop.locations has proper column lineage with correct case sensitivity."""
     if dbt_valid_test_data_dir is None:
         pytest.skip("No valid versioned test data present")
-    
+
     extractor = DbtColumnLineageExtractor(
         manifest_path=f"{dbt_valid_test_data_dir}/manifest.json",
         catalog_path=f"{dbt_valid_test_data_dir}/catalog.json"
     )
-    
+
+    # This assertion is jaffle-shop-specific; skip fixtures that don't include it.
+    if "model.jaffle_shop.locations" not in extractor.manifest.get("nodes", {}):
+        pytest.skip("locations model not present in this fixture")
+
     # Extract the project lineage
     result = extractor.extract_project_lineage()
-    
+
     # Get the lineage for model.jaffle_shop.locations
     locations_lineage = result['lineage']['parents']['model.jaffle_shop.locations']
     

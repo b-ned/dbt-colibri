@@ -240,6 +240,7 @@ def test_manifest_vs_colibri_manifest_node_counts(dbt_valid_test_data_dir):
         manifest_counts["sources_total"] +
         manifest_counts["by_resource_type"].get("model", 0) +
         manifest_counts["by_resource_type"].get("snapshot", 0) +
+        manifest_counts["by_resource_type"].get("seed", 0) +
         manifest_counts["exposures_total"]
     )
     colibri_manifest_total = colibri_counts["nodes_total"] - colibri_counts["hardcoded_nodes"]
@@ -310,9 +311,17 @@ def test_manifest_vs_colibri_manifest_node_counts(dbt_valid_test_data_dir):
         f"Exposure counts should match: manifest has {manifest_exposures}, colibri has {colibri_exposures}"
     )
 
-    # Assertion 3: There should be exactly 1 hardcoded node
-    assert colibri_counts["hardcoded_nodes"] == 1, (
-        f"Expected exactly 1 hardcoded node, but found {colibri_counts['hardcoded_nodes']}"
+    # Assertion 3: hardcoded-node count must match the number of `hardcoded_ref`
+    # markers seeded into the fixture's raw_code (jaffle-shop fixtures contain 1;
+    # other fixtures may contain 0).
+    expected_hardcoded = sum(
+        1
+        for n in report_generator.manifest.get("nodes", {}).values()
+        if "hardcoded_ref" in (n.get("raw_code") or "")
+    )
+    assert colibri_counts["hardcoded_nodes"] == expected_hardcoded, (
+        f"Expected {expected_hardcoded} hardcoded node(s), but found "
+        f"{colibri_counts['hardcoded_nodes']}"
     )
 
     print("=" * 60)
