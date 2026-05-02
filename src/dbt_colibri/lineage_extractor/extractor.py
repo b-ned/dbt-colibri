@@ -371,11 +371,10 @@ class DbtColumnLineageExtractor:
     def _get_parent_nodes_catalog(self, model_info):
         """Build the parent-catalog dict used for schema qualification.
 
-        Adds the model's direct parents and — for ephemeral parents whose
-        compiled bodies are inlined into the consuming model's SQL — also
-        their transitive non-ephemeral ancestors, since those underlying tables
-        appear by name inside the inlined CTE bodies and the qualifier needs
-        their column lists.
+        Ephemeral parents are included with their resolved column projections
+        but their transitive ancestors are NOT added — the inlined CTE bodies
+        are replaced with column-only stubs by ``_stub_ephemeral_ctes`` so
+        sqlglot never sees references to the underlying tables.
         """
         parent_nodes = list(model_info["depends_on"]["nodes"])
         parent_catalog = {"nodes": {}, "sources": {}}
@@ -392,9 +391,6 @@ class DbtColumnLineageExtractor:
                 parent_catalog["sources"][parent] = self.catalog["sources"][parent]
             elif parent in self._ephemeral_registry:
                 parent_catalog["nodes"][parent] = self._ephemeral_catalog_entry(parent)
-                # Walk through to the ephemeral's own parents so the inlined
-                # CTE bodies can qualify their references.
-                queue.extend(self._ephemeral_registry[parent]["depends_on"])
             else:
                 if parent in parent_nodes:
                     self.logger.warning(f"Parent model {parent} not found in catalog")
@@ -601,6 +597,32 @@ class DbtColumnLineageExtractor:
 
         yield from visit(root_node)
     
+    def _stub_ephemeral_ctes(self, sql):
+        """Replace the body of each ``__dbt__cte__<eph>`` CTE with a column-only
+        stub so that sqlglot lineage stops at the ephemeral boundary instead of
+        tracing through the inlined SQL into transitive ancestors.
+        """
+        parsed = maybe_parse(sql, dialect=self.dialect)
+        changed = False
+        for cte in parsed.find_all(exp.CTE):
+            alias = cte.alias
+            if not alias:
+                continue
+            node_id = self._ephemeral_cte_to_node.get(alias.lower())
+            if node_id is None:
+                continue
+            columns = self._resolve_ephemeral_columns(node_id)
+            if not columns:
+                continue
+            projections = [
+                exp.alias_(exp.Null(), col_name, quoted=False)
+                for col_name in columns
+            ]
+            stub = exp.Select(expressions=projections)
+            cte.set("this", stub)
+            changed = True
+        return parsed.sql(dialect=self.dialect) if changed else sql
+
     def _sanitize_sql_for_parsing(self, sql):
         # Placeholder for any SQL sanitization needed before parsing
         if self.dialect != "oracle":
@@ -735,7 +757,7 @@ class DbtColumnLineageExtractor:
                 parent_catalog = self._get_parent_nodes_catalog(model_info)
                 columns = self._get_list_of_columns_for_a_dbt_node(model_node)
                 schema = self._generate_schema_dict_from_catalog(parent_catalog)
-                model_sql = model_info["compiled_code"]
+                model_sql = self._stub_ephemeral_ctes(model_info["compiled_code"])
                 resource_type = model_info.get("resource_type")
                 model_lineage = self._extract_lineage_for_model(
                     model_sql=model_sql,
@@ -1038,7 +1060,7 @@ class DbtColumnLineageExtractor:
 
                 parent_catalog = self._get_parent_nodes_catalog(model_info)
                 schema = self._generate_schema_dict_from_catalog(parent_catalog)
-                model_sql = model_info["compiled_code"]
+                model_sql = self._stub_ephemeral_ctes(model_info["compiled_code"])
 
                 # Parse and qualify once per model
                 model_sql_for_parse = self._sanitize_sql_for_parsing(model_sql)
