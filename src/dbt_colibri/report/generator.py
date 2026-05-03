@@ -309,6 +309,9 @@ class DbtColibriReportGenerator:
                     "relationName": meta.get("relationName"),
                 }
 
+                if node_id in self.extractor.catalog_missing_models:
+                    node_dict["catalogMissing"] = True
+
                 # Add model-level tests (tests without a specific column)
                 model_tests = node_tests.get("__model__", [])
                 if model_tests:
