@@ -1,14 +1,24 @@
 
 
+
+
 ![dbt-colibri header](https://github.com/b-ned/dbt-colibri/blob/d31ece39bacf862e485233aad3e84df9a7618946/static/colibri_header.png)
 
 [![PyPI version](https://badge.fury.io/py/dbt-colibri.svg)](https://badge.fury.io/py/dbt-colibri)
 [![Python Support](https://img.shields.io/pypi/pyversions/dbt-colibri.svg)](https://pypi.org/project/dbt-colibri/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+
+
+
 A lightweight, developer-friendly CLI tool and self-hostable dashboard for extracting and visualizing **column-level lineage** from your dbt projects.
 
 Built for data teams who want transparent, flexible lineage tracking without vendor lock-in or complex enterprise tooling.
+
+
+<div align="center">
+  <img width="800" height="510" alt="colibri-demo-tight" src="https://github.com/user-attachments/assets/a42827a1-cb2f-4522-8cd0-5ba66aa61998" />
+</div>
 
 ## Why dbt-colibri?
 
@@ -17,10 +27,6 @@ Built for data teams who want transparent, flexible lineage tracking without ven
 - **🏠 Self-hosted**: No cloud dependencies or external services required
 
 Documentation site: [https://www.docs.colibri-data.com](https://www.docs.colibri-data.com)
-
-<!-- Add a screenshot here when available -->
-![dbt-colibri dashboard](https://github.com/b-ned/dbt-colibri/blob/d31ece39bacf862e485233aad3e84df9a7618946/static/ui_colibri_readme.png)
-
 
 ## Quick Start
 
