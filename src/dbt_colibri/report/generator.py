@@ -178,6 +178,10 @@ class DbtColibriReportGenerator:
                 if val.get("quote") is True:
                     col_meta["quote"] = True
                     quoted_cols[col.lower()] = col
+                # Extract metadata: v1.10+ uses config.meta, pre-v1.10 uses top-level meta
+                meta = val.get("config", {}).get("meta") or val.get("meta")
+                if meta:
+                    col_meta["meta"] = meta
                 manifest_columns[col.lower()] = col_meta
         if catalog_data and catalog_data.get("columns"):
             for col, val in catalog_data["columns"].items():
@@ -194,6 +198,8 @@ class DbtColibriReportGenerator:
                         entry["tags"] = manifest_columns[col_lc]["tags"]
                     if manifest_columns[col_lc].get("quote"):
                         entry["quote"] = True
+                    if manifest_columns[col_lc].get("meta"):
+                        entry["meta"] = manifest_columns[col_lc]["meta"]
                 columns[col_key] = entry
         elif not catalog_data and node_id in self.extractor._ephemeral_registry:
             resolved = self.extractor._resolve_ephemeral_columns(node_id)
@@ -210,10 +216,15 @@ class DbtColibriReportGenerator:
                         entry["tags"] = manifest_columns[col_lc]["tags"]
                     if manifest_columns[col_lc].get("quote"):
                         entry["quote"] = True
+                    if manifest_columns[col_lc].get("meta"):
+                        entry["meta"] = manifest_columns[col_lc]["meta"]
                 columns[col_key] = entry
 
         node_type = node_data.get("resource_type", "unknown")
         materialized = (node_data.get("config") or {}).get("materialized", "unknown")
+
+        # Extract node-level meta: v1.10+ uses config.meta, pre-v1.10 uses top-level meta
+        node_meta = (node_data.get("config") or {}).get("meta") or node_data.get("meta")
 
         result = {
             "nodeType": node_type,
@@ -230,6 +241,8 @@ class DbtColibriReportGenerator:
             "database": node_data.get("database"),
             "relationName": node_data.get("relation_name")
         }
+        if node_meta:
+            result["meta"] = node_meta
 
         # Add exposure_metadata for exposures
         if node_type == "exposure":
