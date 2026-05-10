@@ -956,3 +956,206 @@ def test_build_manifest_node_data_preserves_quoted_column_case():
     # The lowercased version of the quoted column should NOT exist
     assert "quotedcolumnexample" not in node_data["columns"]
 
+
+def test_column_meta_extracted_from_manifest_pre_v110():
+    """Test that column-level meta from pre-v1.10 dbt manifests (top-level meta) is extracted."""
+    extractor = MagicMock()
+    extractor.manifest = {
+        "metadata": {"project_name": "test_project"},
+        "nodes": {
+            "model.test.meta_model": {
+                "resource_type": "model",
+                "config": {"materialized": "table"},
+                "raw_code": "select 1",
+                "compiled_code": "select 1",
+                "schema": "main",
+                "original_file_path": "models/meta_model.sql",
+                "description": "Model with column meta",
+                "refs": [],
+                "columns": {
+                    "email": {
+                        "data_type": "varchar",
+                        "description": "User email",
+                        "meta": {"contains_pii": True, "masking_policy": "email_mask"},
+                        "tags": [],
+                    },
+                    "user_id": {
+                        "data_type": "integer",
+                        "description": "Primary key",
+                        "meta": {},
+                        "tags": [],
+                    },
+                },
+                "database": "dev",
+                "relation_name": "dev.main.meta_model",
+                "tags": [],
+            },
+        },
+        "sources": {},
+        "exposures": {},
+    }
+    extractor.catalog = {
+        "nodes": {
+            "model.test.meta_model": {
+                "columns": {
+                    "email": {"type": "varchar"},
+                    "user_id": {"type": "integer"},
+                },
+            }
+        },
+        "sources": {},
+    }
+
+    generator = DbtColibriReportGenerator(extractor)
+    node_data = generator.build_manifest_node_data("model.test.meta_model")
+
+    assert node_data["columns"]["email"]["meta"] == {"contains_pii": True, "masking_policy": "email_mask"}
+    assert "meta" not in node_data["columns"]["user_id"]
+
+
+def test_column_meta_extracted_from_manifest_v110_plus():
+    """Test that column-level meta from v1.10+ dbt manifests (config.meta) is extracted."""
+    extractor = MagicMock()
+    extractor.manifest = {
+        "metadata": {"project_name": "test_project"},
+        "nodes": {
+            "model.test.meta_model": {
+                "resource_type": "model",
+                "config": {"materialized": "table"},
+                "raw_code": "select 1",
+                "compiled_code": "select 1",
+                "schema": "main",
+                "original_file_path": "models/meta_model.sql",
+                "description": "Model with column meta",
+                "refs": [],
+                "columns": {
+                    "billing_email": {
+                        "data_type": "varchar",
+                        "description": "Billing email",
+                        "meta": {},
+                        "config": {
+                            "meta": {"contains_pii": True, "masking_policy": "email_mask"},
+                            "tags": [],
+                        },
+                        "tags": [],
+                    },
+                    "customer_id": {
+                        "data_type": "integer",
+                        "description": "Customer ID",
+                        "meta": {},
+                        "config": {"meta": {}, "tags": []},
+                        "tags": [],
+                    },
+                },
+                "database": "dev",
+                "relation_name": "dev.main.meta_model",
+                "tags": [],
+            },
+        },
+        "sources": {},
+        "exposures": {},
+    }
+    extractor.catalog = {
+        "nodes": {
+            "model.test.meta_model": {
+                "columns": {
+                    "billing_email": {"type": "varchar"},
+                    "customer_id": {"type": "integer"},
+                },
+            }
+        },
+        "sources": {},
+    }
+
+    generator = DbtColibriReportGenerator(extractor)
+    node_data = generator.build_manifest_node_data("model.test.meta_model")
+
+    assert node_data["columns"]["billing_email"]["meta"] == {"contains_pii": True, "masking_policy": "email_mask"}
+    assert "meta" not in node_data["columns"]["customer_id"]
+
+
+def test_node_level_meta_extracted_pre_v110():
+    """Test that node-level meta from pre-v1.10 dbt manifests (top-level meta) is extracted."""
+    extractor = MagicMock()
+    extractor.manifest = {
+        "metadata": {"project_name": "test_project"},
+        "nodes": {
+            "model.test.pii_model": {
+                "resource_type": "model",
+                "config": {"materialized": "table"},
+                "raw_code": "select 1",
+                "compiled_code": "select 1",
+                "schema": "main",
+                "original_file_path": "models/pii_model.sql",
+                "description": "Model with node-level meta",
+                "meta": {"contains_pii": True, "owner": "data-team"},
+                "refs": [],
+                "columns": {},
+                "database": "dev",
+                "relation_name": "dev.main.pii_model",
+                "tags": [],
+            },
+            "model.test.no_meta_model": {
+                "resource_type": "model",
+                "config": {"materialized": "table"},
+                "raw_code": "select 1",
+                "compiled_code": "select 1",
+                "schema": "main",
+                "original_file_path": "models/no_meta_model.sql",
+                "description": "Model without meta",
+                "meta": {},
+                "refs": [],
+                "columns": {},
+                "database": "dev",
+                "relation_name": "dev.main.no_meta_model",
+                "tags": [],
+            },
+        },
+        "sources": {},
+        "exposures": {},
+    }
+    extractor.catalog = {"nodes": {}, "sources": {}}
+
+    generator = DbtColibriReportGenerator(extractor)
+
+    node_data = generator.build_manifest_node_data("model.test.pii_model")
+    assert node_data["meta"] == {"contains_pii": True, "owner": "data-team"}
+
+    node_data2 = generator.build_manifest_node_data("model.test.no_meta_model")
+    assert "meta" not in node_data2
+
+
+def test_node_level_meta_extracted_v110_plus():
+    """Test that node-level meta from v1.10+ dbt manifests (config.meta) is extracted."""
+    extractor = MagicMock()
+    extractor.manifest = {
+        "metadata": {"project_name": "test_project"},
+        "nodes": {
+            "model.test.pii_model": {
+                "resource_type": "model",
+                "config": {
+                    "materialized": "table",
+                    "meta": {"contains_pii": True, "owner": "data-team"},
+                },
+                "raw_code": "select 1",
+                "compiled_code": "select 1",
+                "schema": "main",
+                "original_file_path": "models/pii_model.sql",
+                "description": "Model with node-level meta in config",
+                "meta": {},
+                "refs": [],
+                "columns": {},
+                "database": "dev",
+                "relation_name": "dev.main.pii_model",
+                "tags": [],
+            },
+        },
+        "sources": {},
+        "exposures": {},
+    }
+    extractor.catalog = {"nodes": {}, "sources": {}}
+
+    generator = DbtColibriReportGenerator(extractor)
+    node_data = generator.build_manifest_node_data("model.test.pii_model")
+    assert node_data["meta"] == {"contains_pii": True, "owner": "data-team"}
+
