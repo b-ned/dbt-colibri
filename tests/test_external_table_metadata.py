@@ -7,6 +7,7 @@ must not crash lineage extraction with "Unknown column: METADATA$FILENAME".
 
 import pytest
 import json
+import logging
 from dbt_colibri.lineage_extractor.extractor import DbtColumnLineageExtractor
 
 
@@ -151,6 +152,23 @@ def test_external_table_metadata_columns_do_not_crash(metadata_test_files):
     for meta_col in ['filename', 'file_row_number']:
         assert meta_col in model_columns, \
             f"Column {meta_col} should be present in lineage"
+
+
+def test_external_table_metadata_columns_emit_warning(metadata_test_files, caplog):
+    """A column absent from the catalog should be logged, not silently dropped."""
+    manifest_path, catalog_path = metadata_test_files
+
+    extractor = DbtColumnLineageExtractor(
+        manifest_path=manifest_path,
+        catalog_path=catalog_path
+    )
+
+    with caplog.at_level(logging.WARNING, logger="colibri"):
+        extractor.extract_project_lineage()
+
+    warnings = [r.message for r in caplog.records if r.levelno == logging.WARNING]
+    assert any("METADATA$FILENAME" in m and "not in the catalog" in m for m in warnings), \
+        "Expected a warning for the unresolved METADATA$FILENAME column"
 
 
 if __name__ == "__main__":

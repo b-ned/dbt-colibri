@@ -1,5 +1,6 @@
 
 from sqlglot.lineage import maybe_parse, SqlglotError, exp
+from sqlglot.schema import ensure_schema
 import logging
 from ..utils import json_utils, parsing_utils
 from .lineage import lineage, prepare_scope, extract_structural_lineage
@@ -649,6 +650,41 @@ class DbtColumnLineageExtractor:
                         return True
         return False
 
+    def _warn_unresolved_qualified_columns(self, scope, schema, model_node):
+        """Surface columns qualified to a known table but absent from the catalog.
+
+        Since ``allow_partial_qualification`` lets these flow through instead of
+        aborting the whole model (e.g. Snowflake METADATA$ pseudo-columns or a
+        stale catalog), we log them so the gap stays visible.
+        """
+        try:
+            schema_obj = ensure_schema(schema, dialect=self.dialect)
+            seen = set()
+            for sub_scope in scope.traverse():
+                for column in sub_scope.columns:
+                    table_alias = column.table
+                    if not table_alias:
+                        continue
+                    source = sub_scope.sources.get(table_alias)
+                    if not isinstance(source, exp.Table):
+                        continue
+                    known = schema_obj.column_names(source)
+                    if not known:
+                        continue
+                    if column.name.lower() in {k.lower() for k in known}:
+                        continue
+                    key = (table_alias, column.name)
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    self.logger.warning(
+                        f"Column '{column.name}' in model {model_node} is qualified to "
+                        f"'{source.sql(dialect=self.dialect)}' but is not in the catalog; "
+                        f"keeping best-effort lineage."
+                    )
+        except Exception as e:
+            self.logger.debug(f"Could not check unresolved columns for {model_node}: {e}")
+
     def _extract_lineage_for_model(self, model_sql, schema, model_node, resource_type, selected_columns=[]):
         lineage_map = {}
         model_sql_for_parse = self._sanitize_sql_for_parsing(model_sql)
@@ -661,6 +697,7 @@ class DbtColumnLineageExtractor:
         if self.dialect == "bigquery":
             parsed_model_sql = parsing_utils.remove_upper(parsed_model_sql)
         qualified_expr, scope = prepare_scope(parsed_model_sql, schema=schema, dialect=self.dialect)
+        self._warn_unresolved_qualified_columns(scope, schema, model_node)
 
         for column_name in selected_columns:
             normalized_column = _normalize_column_name(column_name)
@@ -1071,6 +1108,7 @@ class DbtColumnLineageExtractor:
                 if self.dialect == "bigquery":
                     parsed_model_sql = parsing_utils.remove_upper(parsed_model_sql)
                 qualified_expr, scope = prepare_scope(parsed_model_sql, schema=schema, dialect=self.dialect)
+                self._warn_unresolved_qualified_columns(scope, schema, model_node)
 
                 # Initialize parents entry for this model
                 model_parents: dict = {}
