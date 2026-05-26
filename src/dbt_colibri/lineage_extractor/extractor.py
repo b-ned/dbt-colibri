@@ -145,7 +145,7 @@ class DbtColumnLineageExtractor:
         
     # Dialects where ``quote: true`` means the identifier is case-sensitive.
     _CASE_SENSITIVE_QUOTE_DIALECTS = frozenset({
-        "snowflake", "postgres", "oracle", "clickhouse",
+        "snowflake", "postgres", "oracle", "clickhouse", "starrocks",
     })
 
     def _build_quoted_columns_lookup(self):
@@ -208,7 +208,7 @@ class DbtColumnLineageExtractor:
         Raises:
             ValueError: If adapter_type is not found or not supported
         """
-        SUPPORTED_ADAPTERS = {'snowflake', 'bigquery', 'redshift', 'duckdb', 'postgres', 'databricks', 'athena', 'trino', 'sqlserver', 'clickhouse', 'oracle', 'fabric'}
+        SUPPORTED_ADAPTERS = {'snowflake', 'bigquery', 'redshift', 'duckdb', 'postgres', 'databricks', 'athena', 'trino', 'sqlserver', 'clickhouse', 'oracle', 'fabric', 'starrocks'}
         
         # Get adapter_type from manifest metadata
         adapter_type = self.manifest.get("metadata", {}).get("adapter_type")
@@ -847,7 +847,7 @@ class DbtColumnLineageExtractor:
 
         column_name_raw = node.name.split(".")[-1]
 
-        if self.dialect == 'clickhouse':
+        if self.dialect in ('clickhouse', 'starrocks'):
             table_name = f"{node.source.db}.{node.source.name}"
         elif self.dialect == 'oracle':
             table_name = self._table_key_from_sqlglot_table_node(node)
@@ -1275,7 +1275,7 @@ class DBTNodeCatalog:
         if "metadata" not in node_data:
             raise ValueError(f"Node data missing metadata field: {node_data}")
 
-        self.database = node_data["metadata"]["database"]
+        self.database = node_data["metadata"]["database"] or ""
         self.unique_id = node_data["unique_id"].lower()
         self.schema = node_data["metadata"]["schema"]
         self.name = node_data["metadata"]["name"]
@@ -1291,7 +1291,7 @@ class DBTNodeCatalog:
 
 class DBTNodeManifest:
     def __init__(self, node_data):
-        self.database = node_data["database"]
+        self.database = node_data["database"] or ""
         self.schema = node_data["schema"]
         self.relation_name = parsing_utils.normalize_table_relation_name(node_data["relation_name"])
         # self.dialect = dialect

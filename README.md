@@ -130,6 +130,7 @@ Gitlab has similar functionality. Other options are writing the file to a bucket
    - SQL Server (TSQL)
    - ClickHouse
    - Oracle
+   - StarRocks
 
 ### dbt Compatibility
 

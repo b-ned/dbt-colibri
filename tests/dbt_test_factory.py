@@ -47,6 +47,7 @@ DIALECTS: dict[str, DialectInfo] = {
     "postgres": DialectInfo("postgres", "lower", True, "postgres"),
     "oracle": DialectInfo("oracle", "upper", True, "oracle"),
     "clickhouse": DialectInfo("clickhouse", "lower", True, "clickhouse"),
+    "starrocks": DialectInfo("starrocks", "lower", True, "starrocks"),
     "bigquery": DialectInfo("bigquery", "lower", False, "bigquery"),
     "duckdb": DialectInfo("duckdb", "lower", False, "duckdb"),
     "redshift": DialectInfo("redshift", "lower", False, "redshift"),
@@ -102,7 +103,7 @@ def catalog_table_name(name: str, dialect_info: DialectInfo) -> str:
 def compiled_column_ref(col: ColumnDef, dialect_info: DialectInfo) -> str:
     """Return the column reference as it would appear in compiled SQL."""
     if col.quote:
-        if dialect_info.name == "bigquery":
+        if dialect_info.name in ("bigquery", "starrocks"):
             return f"`{col.name}`"
         elif dialect_info.name == "tsql":
             return f"[{col.name}]"
@@ -164,7 +165,7 @@ def build_test_artifacts(
 
     # Build SQL column refs for compiled code
     col_refs = ", ".join(compiled_column_ref(c, info) for c in model_columns)
-    if info.name == "clickhouse":
+    if info.name in ("clickhouse", "starrocks"):
         table_ref = f"{cat_src_schema}.{cat_src_table}"
     elif info.name == "oracle":
         table_ref = f"{cat_src_schema}.{cat_src_table}"
@@ -192,7 +193,7 @@ def build_test_artifacts(
 
     def _relation_name(db, schema, table, info):
             """Build a dialect-appropriate relation_name."""
-            if info.name == "clickhouse":
+            if info.name in ("clickhouse", "starrocks"):
                 s = catalog_table_name(schema, info)
                 t = catalog_table_name(table, info)
                 return f"`{s}`.`{t}`"
