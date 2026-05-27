@@ -1,6 +1,7 @@
 
 from sqlglot.lineage import maybe_parse, SqlglotError, exp
 from sqlglot.schema import ensure_schema
+from sqlglot.tokens import TokenType, Tokenizer
 import logging
 from ..utils import json_utils, parsing_utils
 from .lineage import lineage, prepare_scope, extract_structural_lineage
@@ -16,7 +17,7 @@ def _normalize_column_name(name: str) -> str:
     - Removes PostgreSQL-style type casts (``::type``).
     - Strips leading ``$`` (Snowflake session variable prefix).
     """
-    name = name.strip('"').strip("'")
+    name = name.strip('"').strip("'").strip("`")
     name = re.sub(r"::\s*\w+$", "", name)
     if name.startswith("$"):
         name = name[1:]
@@ -190,8 +191,8 @@ class DbtColumnLineageExtractor:
         Handles column names that may arrive with surrounding double-quotes
         from SQLGlot (e.g. ``'"quotedCol"'``).
         """
-        # Strip surrounding double-quotes that SQLGlot may add
-        stripped = column_name.strip('"')
+        # Strip surrounding quotes that SQLGlot may add
+        stripped = column_name.strip('"').strip("`")
         col_lower = stripped.lower()
         quoted = self._get_quoted_columns(node_id)
         if col_lower in quoted:
@@ -480,7 +481,11 @@ class DbtColumnLineageExtractor:
         schema = self._generate_schema_dict_from_catalog(parent_catalog)
 
         try:
-            sql = self._sanitize_sql_for_parsing(compiled)
+            sql = self._sanitize_sql_for_parsing(
+                compiled,
+                schema=schema,
+                model_node=node_id,
+            )
             parsed = maybe_parse(sql, dialect=self.dialect)
             if self.dialect == "postgres" and not self._schema_has_quoted_keys(schema):
                 parsed = parsing_utils.remove_quotes(parsed)
@@ -625,8 +630,100 @@ class DbtColumnLineageExtractor:
             changed = True
         return parsed.sql(dialect=self.dialect) if changed else sql
 
-    def _sanitize_sql_for_parsing(self, sql):
+    @staticmethod
+    def _strip_wrapping_identifier_quotes(name):
+        if (
+            isinstance(name, str)
+            and len(name) >= 2
+            and name[0] == name[-1]
+            and name[0] in {'"', "`", "'"}
+        ):
+            return name[1:-1]
+        return name
+
+    def _known_double_quoted_starrocks_identifiers(
+        self,
+        schema=None,
+        selected_columns=None,
+        model_node=None,
+    ):
+        identifiers = set()
+
+        if schema:
+            for db in schema.values():
+                for sch in db.values():
+                    for tbl in sch.values():
+                        for col in tbl:
+                            stripped = self._strip_wrapping_identifier_quotes(col)
+                            if col != stripped or " " in stripped:
+                                identifiers.add(stripped.lower())
+
+        for col in selected_columns or []:
+            stripped = self._strip_wrapping_identifier_quotes(col)
+            if " " in stripped:
+                identifiers.add(stripped.lower())
+
+        if model_node:
+            for col in self._get_quoted_columns(model_node).values():
+                identifiers.add(col.lower())
+
+        return identifiers
+
+    def _replace_starrocks_double_quoted_identifiers(
+        self,
+        sql,
+        schema=None,
+        selected_columns=None,
+        model_node=None,
+    ):
+        identifiers = self._known_double_quoted_starrocks_identifiers(
+            schema=schema,
+            selected_columns=selected_columns,
+            model_node=model_node,
+        )
+        if not identifiers:
+            return sql
+
+        tokens = Tokenizer(dialect=self.dialect).tokenize(sql)
+        pieces = []
+        last_end = 0
+        changed = False
+
+        for token in tokens:
+            original = sql[token.start:token.end + 1]
+            if (
+                token.token_type == TokenType.IDENTIFIER
+                and original.startswith('"')
+                and original.endswith('"')
+                and token.text.lower() in identifiers
+            ):
+                pieces.append(sql[last_end:token.start])
+                pieces.append(f"`{token.text.replace('`', '``')}`")
+                last_end = token.end + 1
+                changed = True
+
+        if not changed:
+            return sql
+
+        pieces.append(sql[last_end:])
+        return "".join(pieces)
+
+    def _sanitize_sql_for_parsing(
+        self,
+        sql,
+        schema=None,
+        selected_columns=None,
+        model_node=None,
+    ):
         # Placeholder for any SQL sanitization needed before parsing
+        if self.dialect == "starrocks":
+            sql = self._replace_starrocks_double_quoted_identifiers(
+                sql,
+                schema=schema,
+                selected_columns=selected_columns,
+                model_node=model_node,
+            )
+
         if self.dialect != "oracle":
             return sql
 
@@ -687,7 +784,12 @@ class DbtColumnLineageExtractor:
 
     def _extract_lineage_for_model(self, model_sql, schema, model_node, resource_type, selected_columns=[]):
         lineage_map = {}
-        model_sql_for_parse = self._sanitize_sql_for_parsing(model_sql)
+        model_sql_for_parse = self._sanitize_sql_for_parsing(
+            model_sql,
+            schema=schema,
+            selected_columns=selected_columns,
+            model_node=model_node,
+        )
         parsed_model_sql = maybe_parse(model_sql_for_parse, dialect=self.dialect)
         # sqlglot does not unfold * to schema when the schema has quotes, or upper (for BigQuery)
         # Skip remove_quotes when the schema contains quoted column keys, as
@@ -1099,9 +1201,15 @@ class DbtColumnLineageExtractor:
                 parent_catalog = self._get_parent_nodes_catalog(model_info)
                 schema = self._generate_schema_dict_from_catalog(parent_catalog)
                 model_sql = self._stub_ephemeral_ctes(model_info["compiled_code"])
+                columns = self._get_list_of_columns_for_a_dbt_node(model_node)
 
                 # Parse and qualify once per model
-                model_sql_for_parse = self._sanitize_sql_for_parsing(model_sql)
+                model_sql_for_parse = self._sanitize_sql_for_parsing(
+                    model_sql,
+                    schema=schema,
+                    selected_columns=columns,
+                    model_node=model_node,
+                )
                 parsed_model_sql = maybe_parse(model_sql_for_parse, dialect=self.dialect)
                 if self.dialect == "postgres" and not self._schema_has_quoted_keys(schema):
                     parsed_model_sql = parsing_utils.remove_quotes(parsed_model_sql)
@@ -1112,8 +1220,6 @@ class DbtColumnLineageExtractor:
 
                 # Initialize parents entry for this model
                 model_parents: dict = {}
-
-                columns = self._get_list_of_columns_for_a_dbt_node(model_node)
 
                 quoted_cols = self._get_quoted_columns(model_node)
 

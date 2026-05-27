@@ -103,7 +103,7 @@ def catalog_table_name(name: str, dialect_info: DialectInfo) -> str:
 def compiled_column_ref(col: ColumnDef, dialect_info: DialectInfo) -> str:
     """Return the column reference as it would appear in compiled SQL."""
     if col.quote:
-        if dialect_info.name in ("bigquery", "starrocks"):
+        if dialect_info.name in ("bigquery", "databricks", "starrocks"):
             return f"`{col.name}`"
         elif dialect_info.name == "tsql":
             return f"[{col.name}]"
@@ -123,6 +123,7 @@ def build_test_artifacts(
     dialect: str,
     source_columns: list[ColumnDef],
     model_columns: Optional[list[ColumnDef]] = None,
+    model_column_sources: Optional[dict[str, str]] = None,
     *,
     project_name: str = "test_project",
     source_name: str = "raw",
@@ -145,6 +146,9 @@ def build_test_artifacts(
         Columns on the source (and by default, also on the model).
     model_columns : list[ColumnDef] | None
         Columns on the model. Defaults to *source_columns*.
+    model_column_sources : dict[str, str] | None
+        Optional mapping from model column name to source column name, used to
+        generate ``source_col AS model_col`` projections.
 
     Returns
     -------
@@ -155,6 +159,7 @@ def build_test_artifacts(
 
     if model_columns is None:
         model_columns = copy.deepcopy(source_columns)
+    model_column_sources = model_column_sources or {}
 
     # Catalog-cased names
     cat_db = catalog_table_name(database, info)
@@ -164,7 +169,19 @@ def build_test_artifacts(
     cat_model_table = catalog_table_name(model_name, info)
 
     # Build SQL column refs for compiled code
-    col_refs = ", ".join(compiled_column_ref(c, info) for c in model_columns)
+    source_columns_by_name = {c.name: c for c in source_columns}
+    expressions = []
+    for model_col in model_columns:
+        source_col_name = model_column_sources.get(model_col.name)
+        if not source_col_name:
+            expressions.append(compiled_column_ref(model_col, info))
+            continue
+
+        source_col = source_columns_by_name[source_col_name]
+        source_ref = compiled_column_ref(source_col, info)
+        model_ref = compiled_column_ref(model_col, info)
+        expressions.append(f"{source_ref} AS {model_ref}")
+    col_refs = ", ".join(expressions)
     if info.name in ("clickhouse", "starrocks"):
         table_ref = f"{cat_src_schema}.{cat_src_table}"
     elif info.name == "oracle":

@@ -1,4 +1,5 @@
 import pytest
+from unittest.mock import patch
 from dbt_colibri.lineage_extractor.extractor import DbtColumnLineageExtractor
 from dbt_colibri.report.generator import DbtColibriReportGenerator
 from dbt_test_factory import (
@@ -87,6 +88,236 @@ COLUMNS = [
 
 MODEL_ID = "model.test_project.my_model"
 SOURCE_ID = "source.test_project.raw.source_table"
+
+
+@pytest.mark.parametrize("dialect", sorted(DIALECTS))
+def test_quoted_column_with_spaces_rename_by_dialect(dialect):
+    """The factory exercises each adapter's native quoting style for spaces."""
+    source_columns = [
+        ColumnDef("order item_id", "VARCHAR", quote=True),
+        ColumnDef("order_id", "NUMBER"),
+        ColumnDef("product_id", "VARCHAR"),
+    ]
+    model_columns = [
+        ColumnDef("orderitem id", "VARCHAR", quote=True),
+        ColumnDef("order_id", "NUMBER"),
+        ColumnDef("product_id", "VARCHAR"),
+    ]
+
+    extractor = make_extractor(
+        dialect,
+        source_columns,
+        model_columns=model_columns,
+        model_column_sources={"orderitem id": "order item_id"},
+    )
+    parents = extractor.extract_project_lineage()["lineage"]["parents"]
+    model_lineage = parents[MODEL_ID]
+
+    assert model_lineage["orderitem id"] == [
+        {
+            "column": "order item_id",
+            "dbt_node": SOURCE_ID,
+            "lineage_type": "rename",
+        }
+    ]
+
+
+def test_starrocks_double_quoted_column_with_spaces_has_lineage():
+    """StarRocks SQL can contain double-quoted dbt identifiers with spaces."""
+    raw_source_id = "source.test_project.raw.raw_items"
+    first_model_id = "model.test_project.model_with_white_space_in_col"
+    second_model_id = "model.test_project.renamed_white_space_columns"
+
+    def manifest_columns(*cols):
+        return {
+            name: {
+                "name": name,
+                "data_type": "VARCHAR",
+                "description": "",
+                "tags": [],
+                **({"quote": True} if quote else {}),
+            }
+            for name, quote in cols
+        }
+
+    def catalog_columns(*names):
+        return {
+            name: {
+                "name": name,
+                "type": "VARCHAR",
+                "index": i,
+                "comment": None,
+            }
+            for i, name in enumerate(names, 1)
+        }
+
+    manifest = {
+        "metadata": {
+            "adapter_type": "starrocks",
+            "dbt_version": "1.11.6",
+            "dbt_schema_version": "https://schemas.getdbt.com/dbt/manifest/v12.json",
+            "invocation_id": "test-fixture",
+            "project_name": "test_project",
+        },
+        "nodes": {
+            first_model_id: {
+                "path": "models/model_with_white_space_in_col.sql",
+                "original_file_path": "models/model_with_white_space_in_col.sql",
+                "resource_type": "model",
+                "compiled_code": """
+                    with source as (
+                        select * from `raw`.`raw_items`
+                    ),
+                    renamed as (
+                        select
+                            id as "order item_id",
+                            order_id,
+                            sku as product_id
+                        from source
+                    )
+                    select * from renamed
+                """,
+                "raw_code": "select ...",
+                "depends_on": {"nodes": [raw_source_id]},
+                "database": "test_db",
+                "schema": "jaffle_shop",
+                "name": "model_with_white_space_in_col",
+                "alias": "model_with_white_space_in_col",
+                "columns": manifest_columns(
+                    ("order item_id", True),
+                    ("order_id", False),
+                    ("product_id", False),
+                ),
+                "relation_name": "`jaffle_shop`.`model_with_white_space_in_col`",
+                "config": {"materialized": "table"},
+                "refs": [],
+                "tags": [],
+                "fqn": ["test_project", "model_with_white_space_in_col"],
+            },
+            second_model_id: {
+                "path": "models/renamed_white_space_columns.sql",
+                "original_file_path": "models/renamed_white_space_columns.sql",
+                "resource_type": "model",
+                "compiled_code": """
+                    with source as (
+                        select * from `jaffle_shop`.`model_with_white_space_in_col`
+                    ),
+                    renamed as (
+                        select
+                            "order item_id" as "orderitem id",
+                            order_id,
+                            product_id
+                        from source
+                    )
+                    select * from renamed
+                """,
+                "raw_code": "select ...",
+                "depends_on": {"nodes": [first_model_id]},
+                "database": "test_db",
+                "schema": "jaffle_shop",
+                "name": "renamed_white_space_columns",
+                "alias": "renamed_white_space_columns",
+                "columns": manifest_columns(
+                    ("orderitem id", True),
+                    ("order_id", False),
+                    ("product_id", False),
+                ),
+                "relation_name": "`jaffle_shop`.`renamed_white_space_columns`",
+                "config": {"materialized": "table"},
+                "refs": [],
+                "tags": [],
+                "fqn": ["test_project", "renamed_white_space_columns"],
+            },
+        },
+        "sources": {
+            raw_source_id: {
+                "path": "models/sources.yml",
+                "original_file_path": "models/sources.yml",
+                "resource_type": "source",
+                "database": "test_db",
+                "schema": "raw",
+                "name": "raw_items",
+                "identifier": "raw_items",
+                "columns": manifest_columns(
+                    ("id", False),
+                    ("order_id", False),
+                    ("sku", False),
+                ),
+                "relation_name": "`raw`.`raw_items`",
+                "config": {"materialized": None},
+                "fqn": ["test_project", "raw", "raw_items"],
+                "tags": [],
+            },
+        },
+        "exposures": {},
+        "parent_map": {
+            first_model_id: [raw_source_id],
+            second_model_id: [first_model_id],
+            raw_source_id: [],
+        },
+        "child_map": {
+            raw_source_id: [first_model_id],
+            first_model_id: [second_model_id],
+            second_model_id: [],
+        },
+    }
+    catalog = {
+        "nodes": {
+            first_model_id: {
+                "unique_id": first_model_id,
+                "metadata": {
+                    "database": "test_db",
+                    "schema": "jaffle_shop",
+                    "name": "model_with_white_space_in_col",
+                    "type": "table",
+                },
+                "columns": catalog_columns("order item_id", "order_id", "product_id"),
+            },
+            second_model_id: {
+                "unique_id": second_model_id,
+                "metadata": {
+                    "database": "test_db",
+                    "schema": "jaffle_shop",
+                    "name": "renamed_white_space_columns",
+                    "type": "table",
+                },
+                "columns": catalog_columns("orderitem id", "order_id", "product_id"),
+            },
+        },
+        "sources": {
+            raw_source_id: {
+                "unique_id": raw_source_id,
+                "metadata": {
+                    "database": "test_db",
+                    "schema": "raw",
+                    "name": "raw_items",
+                    "type": "table",
+                },
+                "columns": catalog_columns("id", "order_id", "sku"),
+            },
+        },
+    }
+
+    with patch("dbt_colibri.utils.json_utils.read_json") as mock:
+        mock.side_effect = [manifest, catalog]
+        extractor = DbtColumnLineageExtractor(
+            manifest_path="dummy",
+            catalog_path="dummy",
+        )
+
+    lineage = extractor.extract_project_lineage()["lineage"]
+    second_parents = lineage["parents"][second_model_id]
+
+    assert second_parents["orderitem id"] == [
+        {
+            "column": "order item_id",
+            "dbt_node": first_model_id,
+            "lineage_type": "rename",
+        }
+    ]
+    assert lineage["children"][first_model_id]["order item_id"] == [
+        {"column": "orderitem id", "dbt_node": second_model_id}
+    ]
 
 
 @pytest.mark.parametrize("dialect", sorted(CASE_SENSITIVE_QUOTE_DIALECTS))
