@@ -437,11 +437,15 @@ def _resolve_structural_column(col, scope, dialect, visited, trim_selects):
     """Resolve a single column from WHERE/JOIN using scope.sources + to_node()."""
     table = col.table
     source = scope.sources.get(table)
+    scope_name = table
+
+    if not source and not table and len(scope.sources) == 1:
+        scope_name, source = next(iter(scope.sources.items()))
 
     if isinstance(source, Scope):
         # CTE/subquery → trace through using to_node() (same recursive logic)
         return to_node(col.name, scope=source, dialect=dialect,
-                       scope_name=table, trim_selects=trim_selects, visited=visited)
+                       scope_name=scope_name, trim_selects=trim_selects, visited=visited)
     elif source and isinstance(source, exp.Table):
         # Leaf table → create leaf Node directly
         return Node(name=col.sql(comments=False), source=source, expression=source)
