@@ -123,7 +123,7 @@ Gitlab has similar functionality. Other options are writing the file to a bucket
    - BigQuery, 
    - Redshift, 
    - duckDB, 
-     - Postgres
+   - Postgres
    - Vertica
    - Databricks (**limited to SQL models**)
    - Athena
