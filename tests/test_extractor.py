@@ -81,6 +81,16 @@ def test_adapter_type_detection_duckdb():
     )
     assert extractor.dialect == "duckdb"
 
+def test_adapter_type_detection_sqlserver():
+    """Test that SQL Server adapter type maps to tsql SQLGlot dialect."""
+    extractor = DbtColumnLineageExtractor(
+        manifest_path="tests/test_data/sqlserver/manifest.json",
+        catalog_path="tests/test_data/sqlserver/catalog.json",
+    )
+    assert extractor.dialect == "tsql"
+    assert extractor.adapter_type == "sqlserver"
+
+
 def test_adapter_type_detection_vertica():
     """Test that Vertica adapter type maps to postgres SQLGlot dialect."""
     extractor = DbtColumnLineageExtractor(
@@ -89,6 +99,28 @@ def test_adapter_type_detection_vertica():
     )
     assert extractor.dialect == "postgres"
     assert extractor.adapter_type == "vertica"
+
+
+def test_vertica_quoted_columns_preserve_case():
+    """Quoted columns on Vertica should preserve case via adapter_type semantics."""
+    from dbt_test_factory import ColumnDef, make_extractor
+
+    extractor = make_extractor(
+        "vertica",
+        source_columns=[
+            ColumnDef("quotedColumnExample", quote=True),
+            ColumnDef("normal_col"),
+        ],
+    )
+    model_id = "model.test_project.my_model"
+    assert extractor.adapter_type == "vertica"
+    assert extractor.dialect == "postgres"
+    quoted = extractor._get_quoted_columns(model_id)
+    assert quoted["quotedcolumnexample"] == "quotedColumnExample"
+    assert extractor._resolve_column_name(
+        "quotedColumnExample", model_id
+    ) == "quotedColumnExample"
+    assert extractor._resolve_column_name("normal_col", model_id) == "normal_col"
 
 
 def test_extractor_initialization(dbt_valid_test_data_dir):
