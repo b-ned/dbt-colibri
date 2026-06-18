@@ -146,7 +146,7 @@ class DbtColumnLineageExtractor:
         
     # Dialects where ``quote: true`` means the identifier is case-sensitive.
     _CASE_SENSITIVE_QUOTE_DIALECTS = frozenset({
-        "snowflake", "postgres", "oracle", "clickhouse", "starrocks",
+        "snowflake", "postgres", "oracle", "clickhouse", "starrocks", "vertica",
     })
 
     def _build_quoted_columns_lookup(self):
@@ -161,7 +161,7 @@ class DbtColumnLineageExtractor:
         dialects (BigQuery, DuckDB, etc.) quoting is used to escape reserved
         words but does not affect casing, so the lookup stays empty.
         """
-        if self.dialect not in self._CASE_SENSITIVE_QUOTE_DIALECTS:
+        if self.adapter_type not in self._CASE_SENSITIVE_QUOTE_DIALECTS:
             return {}
         lookup = {}
         for node_id, node_data in {**self.manifest.get("nodes", {}), **self.manifest.get("sources", {})}.items():
@@ -209,7 +209,7 @@ class DbtColumnLineageExtractor:
         Raises:
             ValueError: If adapter_type is not found or not supported
         """
-        SUPPORTED_ADAPTERS = {'snowflake', 'bigquery', 'redshift', 'duckdb', 'postgres', 'databricks', 'athena', 'trino', 'sqlserver', 'clickhouse', 'oracle', 'fabric', 'starrocks'}
+        SUPPORTED_ADAPTERS = {'snowflake', 'bigquery', 'redshift', 'duckdb', 'postgres', 'databricks', 'athena', 'trino', 'sqlserver', 'clickhouse', 'oracle', 'fabric', 'starrocks', 'vertica'}
         
         # Get adapter_type from manifest metadata
         adapter_type = self.manifest.get("metadata", {}).get("adapter_type")
@@ -227,10 +227,13 @@ class DbtColumnLineageExtractor:
             )
         
         self.logger.info(f"Detected adapter type: {adapter_type}")
+        self.adapter_type = adapter_type
         if adapter_type == "sqlserver":
             # Adapter type != Dialect Name for all adapters.
             return "tsql"
-        
+        if adapter_type == "vertica":
+            return "postgres"
+
         return adapter_type
 
     def build_nodes_with_columns(self):

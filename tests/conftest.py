@@ -26,6 +26,7 @@ def get_dialect_from_test_data_dir(test_data_dir: str) -> str:
         "1.10": "snowflake",     # dbt 1.10 typically uses snowflake
         "bigquery": "bigquery",  # BigQuery data uses bigquery dialect
         "postgres": "postgres",  # PostgreSQL data uses postgres dialect
+        "vertica": "postgres",  # Vertica uses postgres SQLGlot dialect
         "mysql": "mysql",        # MySQL data uses mysql dialect
         "redshift": "redshift",  # Redshift data uses redshift dialect
         "sqlite": "sqlite",      # SQLite data uses sqlite dialect

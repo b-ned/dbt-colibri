@@ -81,6 +81,16 @@ def test_adapter_type_detection_duckdb():
     )
     assert extractor.dialect == "duckdb"
 
+def test_adapter_type_detection_vertica():
+    """Test that Vertica adapter type maps to postgres SQLGlot dialect."""
+    extractor = DbtColumnLineageExtractor(
+        manifest_path="tests/test_data/vertica/manifest.json",
+        catalog_path="tests/test_data/vertica/catalog.json",
+    )
+    assert extractor.dialect == "postgres"
+    assert extractor.adapter_type == "vertica"
+
+
 def test_extractor_initialization(dbt_valid_test_data_dir):
     """Test that the extractor can be initialized with valid parameters."""
     if dbt_valid_test_data_dir is None:

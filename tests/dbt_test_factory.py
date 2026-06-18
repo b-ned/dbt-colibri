@@ -45,6 +45,7 @@ class DialectInfo:
 DIALECTS: dict[str, DialectInfo] = {
     "snowflake": DialectInfo("snowflake", "upper", True, "snowflake"),
     "postgres": DialectInfo("postgres", "lower", True, "postgres"),
+    "vertica": DialectInfo("vertica", "lower", True, "vertica", sqlglot_dialect="postgres"),
     "oracle": DialectInfo("oracle", "upper", True, "oracle"),
     "clickhouse": DialectInfo("clickhouse", "lower", True, "clickhouse"),
     "starrocks": DialectInfo("starrocks", "lower", True, "starrocks"),
