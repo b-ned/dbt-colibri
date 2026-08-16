@@ -2,7 +2,33 @@
 import json
 import os
 from collections import Counter
+import pytest
 from dbt_colibri.utils.parsing_utils import normalize_table_relation_name
+
+
+@pytest.mark.parametrize("dialect", ["fabric", "sqlserver", "tsql"])
+def test_normalize_tsql_bracketed_relation_name(dialect):
+    relation_name = "[Business Central Replication].[dbo].[AccountingPeriod-50]"
+
+    assert normalize_table_relation_name(relation_name, dialect=dialect) == (
+        "Business Central Replication.dbo.AccountingPeriod-50"
+    )
+
+
+def test_relation_normalization_preserves_literal_brackets_for_other_dialects():
+    relation_name = '"analytics"."public"."events[archived]"'
+
+    assert normalize_table_relation_name(relation_name, dialect="postgres") == (
+        "analytics.public.events[archived]"
+    )
+
+
+def test_normalize_tsql_escaped_closing_bracket():
+    relation_name = "[warehouse].[dbo].[events]]archive]"
+
+    assert normalize_table_relation_name(relation_name, dialect="fabric") == (
+        "warehouse.dbo.events]archive"
+    )
 
 
 def test_normalize_relation_name_across_sql_dialects():
@@ -122,5 +148,4 @@ def count_edges_with_double_colon(result: dict) -> dict:
         "nodes_by_type": dict(Counter(node.get("nodeType", "unknown") for node in nodes.values())),
         "hardcoded_nodes": len(hardcoded_nodes)
     }
-
 

@@ -730,6 +730,65 @@ def make_extractor(manifest_nodes=None, nodes_with_columns=None):
     return extractor
 
 
+@pytest.mark.parametrize(
+    ("resource_type", "target_id"),
+    [
+        ("source", "source.test_project.bc.accounting_period"),
+        ("model", "model.test_project.stg_bc__gl_account"),
+    ],
+)
+def test_fabric_bracketed_relation_resolves_without_phantom_node(
+    resource_type, target_id
+):
+    model_node = "model.test_project.downstream"
+    target = {
+        "resource_type": resource_type,
+        "database": "Business Central Replication",
+        "schema": "dbo",
+        "name": "AccountingPeriod-50",
+        "identifier": "AccountingPeriod-50",
+        "relation_name": "[Business Central Replication].[dbo].[AccountingPeriod-50]",
+        "columns": {"No-1": {"name": "No-1"}},
+        "config": {"materialized": None if resource_type == "source" else "view"},
+    }
+    downstream = {
+        "resource_type": "model",
+        "database": "DBT Warehouse",
+        "schema": "dbt_tk",
+        "name": "downstream",
+        "alias": "downstream",
+        "relation_name": "[DBT Warehouse].[dbt_tk].[downstream]",
+        "raw_code": "select [No-1] from {{ ref_or_source() }}",
+        "columns": {},
+        "config": {"materialized": "view"},
+    }
+
+    extractor = object.__new__(DbtColumnLineageExtractor)
+    extractor.logger = logging.getLogger("colibri_test")
+    extractor.dialect = "fabric"
+    extractor.manifest = {"nodes": {model_node: downstream}, "sources": {}}
+    if resource_type == "source":
+        extractor.manifest["sources"][target_id] = target
+    else:
+        extractor.manifest["nodes"][target_id] = target
+    extractor.catalog = {"nodes": {}, "sources": {}}
+    extractor.nodes_with_columns = extractor.build_nodes_with_columns()
+    extractor._table_to_node = {
+        key.lower(): value for key, value in extractor.nodes_with_columns.items()
+    }
+
+    source = MockSource(
+        catalog="Business Central Replication",
+        db="dbo",
+        name="AccountingPeriod-50",
+    )
+    node = MockSqlglotNode(source, "AccountingPeriod-50.No-1")
+
+    result = extractor.get_dbt_node_from_sqlglot_table_node(node, model_node)
+
+    assert result == {"column": "no-1", "dbt_node": target_id}
+
+
 def test_clickhouse_leading_dot_table_matches():
     """
     Simulate ClickHouse where only db and table are used (no catalog),
