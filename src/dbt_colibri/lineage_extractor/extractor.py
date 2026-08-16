@@ -232,7 +232,11 @@ class DbtColumnLineageExtractor:
             # Adapter type != Dialect Name for all adapters.
             return "tsql"
         if adapter_type == "vertica":
-            # Vertica has no native SQLGlot dialect; postgres parsing is the closest match.
+            self.logger.warning(
+                "Vertica is not fully supported because SQLGlot has no Vertica "
+                "dialect. Falling back to the PostgreSQL parser; generated "
+                "lineage may be incomplete or incorrect."
+            )
             return "postgres"
 
         return adapter_type

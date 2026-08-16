@@ -91,8 +91,8 @@ def test_adapter_type_detection_sqlserver():
     assert extractor.adapter_type == "sqlserver"
 
 
-def test_adapter_type_detection_vertica():
-    """Test that Vertica adapter type maps to postgres SQLGlot dialect."""
+def test_adapter_type_detection_vertica(caplog):
+    """Vertica falls back to Postgres with an explicit support warning."""
     from dbt_test_factory import ColumnDef, make_extractor
 
     extractor = make_extractor(
@@ -101,6 +101,8 @@ def test_adapter_type_detection_vertica():
     )
     assert extractor.dialect == "postgres"
     assert extractor.adapter_type == "vertica"
+    assert "Vertica is not fully supported" in caplog.text
+    assert "lineage may be incomplete or incorrect" in caplog.text
 
 
 def test_vertica_quoted_columns_are_case_insensitive():

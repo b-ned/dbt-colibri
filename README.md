@@ -124,7 +124,7 @@ Gitlab has similar functionality. Other options are writing the file to a bucket
    - Redshift, 
    - duckDB, 
    - Postgres
-   - Vertica
+   - Vertica (**not fully supported: SQLGlot has no Vertica dialect, so Colibri falls back to PostgreSQL parsing and lineage may be incomplete or incorrect**)
    - Databricks (**limited to SQL models**)
    - Athena
    - Trino
