@@ -88,4 +88,3 @@ def pytest_generate_tests(metafunc):
             valid_dirs = [None]
         ids = [os.path.basename(d) if d is not None else "no-valid-data" for d in valid_dirs]
         metafunc.parametrize("dbt_valid_test_data_dir", valid_dirs, ids=ids)
-
