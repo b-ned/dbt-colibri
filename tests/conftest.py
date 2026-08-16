@@ -26,7 +26,6 @@ def get_dialect_from_test_data_dir(test_data_dir: str) -> str:
         "1.10": "snowflake",     # dbt 1.10 typically uses snowflake
         "bigquery": "bigquery",  # BigQuery data uses bigquery dialect
         "postgres": "postgres",  # PostgreSQL data uses postgres dialect
-        "vertica": "postgres",  # Vertica uses postgres SQLGlot dialect
         "mysql": "mysql",        # MySQL data uses mysql dialect
         "redshift": "redshift",  # Redshift data uses redshift dialect
         "sqlite": "sqlite",      # SQLite data uses sqlite dialect
@@ -89,4 +88,3 @@ def pytest_generate_tests(metafunc):
             valid_dirs = [None]
         ids = [os.path.basename(d) if d is not None else "no-valid-data" for d in valid_dirs]
         metafunc.parametrize("dbt_valid_test_data_dir", valid_dirs, ids=ids)
-

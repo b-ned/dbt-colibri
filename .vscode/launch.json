@@ -101,22 +101,6 @@
             "console": "integratedTerminal"
         },
         {
-            "name": "Debug: Vertica Dialect",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "src.dbt_colibri.cli.cli",
-            "args": [
-                "generate",
-                "--manifest",
-                "tests/test_data/vertica/manifest.json",
-                "--catalog",
-                "tests/test_data/vertica/catalog.json",
-                "--output-dir",
-                "output/vertica"
-            ],
-            "console": "integratedTerminal"
-        },
-        {
             "name": "Debug: Postgres Dialect",
             "type": "debugpy",
             "request": "launch",

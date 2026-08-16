@@ -53,6 +53,7 @@ class DbtColumnLineageExtractor:
         self.manifest = json_utils.read_json(manifest_path)
         self.catalog = json_utils.read_json(catalog_path)
         self.schema_dict = self._generate_schema_dict_from_catalog()
+        self.adapter_type = self.manifest.get("metadata", {}).get("adapter_type")
         self.dialect = self._detect_adapter_type()
         # self.node_mapping = self._get_dict_mapping_full_table_name_to_dbt_node()
         self._quoted_columns_lookup = self._build_quoted_columns_lookup()
@@ -144,9 +145,9 @@ class DbtColumnLineageExtractor:
         except PackageNotFoundError:
             return "unknown"
         
-    # Dialects where ``quote: true`` means the identifier is case-sensitive.
-    _CASE_SENSITIVE_QUOTE_DIALECTS = frozenset({
-        "snowflake", "postgres", "oracle", "clickhouse", "starrocks", "vertica",
+    # Adapters where ``quote: true`` means the identifier is case-sensitive.
+    _CASE_SENSITIVE_QUOTE_ADAPTERS = frozenset({
+        "snowflake", "postgres", "oracle", "clickhouse", "starrocks",
     })
 
     def _build_quoted_columns_lookup(self):
@@ -161,7 +162,7 @@ class DbtColumnLineageExtractor:
         dialects (BigQuery, DuckDB, etc.) quoting is used to escape reserved
         words but does not affect casing, so the lookup stays empty.
         """
-        if self.adapter_type not in self._CASE_SENSITIVE_QUOTE_DIALECTS:
+        if self.adapter_type not in self._CASE_SENSITIVE_QUOTE_ADAPTERS:
             return {}
         lookup = {}
         for node_id, node_data in {**self.manifest.get("nodes", {}), **self.manifest.get("sources", {})}.items():
@@ -212,7 +213,7 @@ class DbtColumnLineageExtractor:
         SUPPORTED_ADAPTERS = {'snowflake', 'bigquery', 'redshift', 'duckdb', 'postgres', 'databricks', 'athena', 'trino', 'sqlserver', 'clickhouse', 'oracle', 'fabric', 'starrocks', 'vertica'}
         
         # Get adapter_type from manifest metadata
-        adapter_type = self.manifest.get("metadata", {}).get("adapter_type")
+        adapter_type = self.adapter_type
         
         if not adapter_type:
             raise ValueError(
@@ -227,7 +228,6 @@ class DbtColumnLineageExtractor:
             )
         
         self.logger.info(f"Detected adapter type: {adapter_type}")
-        self.adapter_type = adapter_type
         if adapter_type == "sqlserver":
             # Adapter type != Dialect Name for all adapters.
             return "tsql"

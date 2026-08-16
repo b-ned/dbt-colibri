@@ -12,7 +12,7 @@ Dialect conventions (as observed via SQLGlot):
 
 Quoted column case-sensitivity (SQLGlot qualify behaviour):
   Preserves case: snowflake, postgres, oracle, clickhouse
-  Lowercases:     bigquery, duckdb, redshift, trino, tsql, databricks
+  Lowercases:     bigquery, duckdb, redshift, trino, tsql, databricks, vertica
 """
 
 from __future__ import annotations
@@ -45,7 +45,7 @@ class DialectInfo:
 DIALECTS: dict[str, DialectInfo] = {
     "snowflake": DialectInfo("snowflake", "upper", True, "snowflake"),
     "postgres": DialectInfo("postgres", "lower", True, "postgres"),
-    "vertica": DialectInfo("vertica", "lower", True, "vertica", sqlglot_dialect="postgres"),
+    "vertica": DialectInfo("vertica", "lower", False, "vertica", sqlglot_dialect="postgres"),
     "oracle": DialectInfo("oracle", "upper", True, "oracle"),
     "clickhouse": DialectInfo("clickhouse", "lower", True, "clickhouse"),
     "starrocks": DialectInfo("starrocks", "lower", True, "starrocks"),

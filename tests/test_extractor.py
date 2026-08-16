@@ -93,16 +93,18 @@ def test_adapter_type_detection_sqlserver():
 
 def test_adapter_type_detection_vertica():
     """Test that Vertica adapter type maps to postgres SQLGlot dialect."""
-    extractor = DbtColumnLineageExtractor(
-        manifest_path="tests/test_data/vertica/manifest.json",
-        catalog_path="tests/test_data/vertica/catalog.json",
+    from dbt_test_factory import ColumnDef, make_extractor
+
+    extractor = make_extractor(
+        "vertica",
+        source_columns=[ColumnDef("customer_id")],
     )
     assert extractor.dialect == "postgres"
     assert extractor.adapter_type == "vertica"
 
 
-def test_vertica_quoted_columns_preserve_case():
-    """Quoted columns on Vertica should preserve case via adapter_type semantics."""
+def test_vertica_quoted_columns_are_case_insensitive():
+    """Vertica treats quoted and unquoted identifiers case-insensitively."""
     from dbt_test_factory import ColumnDef, make_extractor
 
     extractor = make_extractor(
@@ -115,12 +117,20 @@ def test_vertica_quoted_columns_preserve_case():
     model_id = "model.test_project.my_model"
     assert extractor.adapter_type == "vertica"
     assert extractor.dialect == "postgres"
-    quoted = extractor._get_quoted_columns(model_id)
-    assert quoted["quotedcolumnexample"] == "quotedColumnExample"
+    assert extractor._get_quoted_columns(model_id) == {}
     assert extractor._resolve_column_name(
         "quotedColumnExample", model_id
-    ) == "quotedColumnExample"
+    ) == "quotedcolumnexample"
     assert extractor._resolve_column_name("normal_col", model_id) == "normal_col"
+
+    parents = extractor.extract_project_lineage()["lineage"]["parents"][model_id]
+    assert parents["quotedcolumnexample"] == [
+        {
+            "column": "quotedcolumnexample",
+            "dbt_node": "source.test_project.raw.source_table",
+            "lineage_type": "pass-through",
+        }
+    ]
 
 
 def test_extractor_initialization(dbt_valid_test_data_dir):
