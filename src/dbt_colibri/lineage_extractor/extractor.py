@@ -1,5 +1,5 @@
 
-from sqlglot.lineage import maybe_parse, SqlglotError, exp
+from sqlglot.lineage import SqlglotError, exp
 from sqlglot.schema import ensure_schema
 from sqlglot.tokens import TokenType, Tokenizer
 import logging
@@ -486,7 +486,7 @@ class DbtColumnLineageExtractor:
                 schema=schema,
                 model_node=node_id,
             )
-            parsed = maybe_parse(sql, dialect=self.dialect)
+            parsed = parsing_utils.parse_sql(sql, dialect=self.dialect)
             if self.dialect == "postgres" and not self._schema_has_quoted_keys(schema):
                 parsed = parsing_utils.remove_quotes(parsed)
             if self.dialect == "bigquery":
@@ -609,7 +609,7 @@ class DbtColumnLineageExtractor:
         stub so that sqlglot lineage stops at the ephemeral boundary instead of
         tracing through the inlined SQL into transitive ancestors.
         """
-        parsed = maybe_parse(sql, dialect=self.dialect)
+        parsed = parsing_utils.parse_sql(sql, dialect=self.dialect)
         changed = False
         for cte in parsed.find_all(exp.CTE):
             alias = cte.alias
@@ -790,7 +790,7 @@ class DbtColumnLineageExtractor:
             selected_columns=selected_columns,
             model_node=model_node,
         )
-        parsed_model_sql = maybe_parse(model_sql_for_parse, dialect=self.dialect)
+        parsed_model_sql = parsing_utils.parse_sql(model_sql_for_parse, dialect=self.dialect)
         # sqlglot does not unfold * to schema when the schema has quotes, or upper (for BigQuery)
         # Skip remove_quotes when the schema contains quoted column keys, as
         # stripping AST quotes prevents SQLGlot from matching case-sensitive columns.
@@ -1210,7 +1210,7 @@ class DbtColumnLineageExtractor:
                     selected_columns=columns,
                     model_node=model_node,
                 )
-                parsed_model_sql = maybe_parse(model_sql_for_parse, dialect=self.dialect)
+                parsed_model_sql = parsing_utils.parse_sql(model_sql_for_parse, dialect=self.dialect)
                 if self.dialect == "postgres" and not self._schema_has_quoted_keys(schema):
                     parsed_model_sql = parsing_utils.remove_quotes(parsed_model_sql)
                 if self.dialect == "bigquery":
