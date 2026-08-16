@@ -249,7 +249,9 @@ class DbtColumnLineageExtractor:
             if node['config'].get('materialized') == 'ephemeral':
                 relation_name = node['database'] + '.' + node['schema'] + '.' + node.get('alias', node.get('name'))
             else:
-                relation_name = parsing_utils.normalize_table_relation_name(node["relation_name"])
+                relation_name = parsing_utils.normalize_table_relation_name(
+                    node["relation_name"], dialect=self.dialect
+                )
 
             # Start with manifest node info
             merged[relation_name] = {
@@ -287,7 +289,9 @@ class DbtColumnLineageExtractor:
                         (node.get("alias") or node.get("name"))
                     )
                 else:
-                    relation_name = parsing_utils.normalize_table_relation_name(node["relation_name"])
+                    relation_name = parsing_utils.normalize_table_relation_name(
+                        node["relation_name"], dialect=self.dialect
+                    )
                 if relation_name:
                     mapping[str(relation_name).lower()] = node_id
             except Exception as e:
