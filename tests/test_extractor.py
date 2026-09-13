@@ -624,9 +624,13 @@ def test_column_lineage_with_real_data(dbt_valid_test_data_dir):
     
     # Verify the result
     assert columns_lineage
-    assert selected_models[0].lower() in columns_lineage
-    
-    model_columns = columns_lineage[selected_models[0].lower()]
+    # Node ids keep their original case (e.g. model.jaffle_shop.STG_CUSTOMERS)
+    model_key = next(
+        (k for k in columns_lineage if k.lower() == selected_models[0].lower()), None
+    )
+    assert model_key is not None
+
+    model_columns = columns_lineage[model_key]
     assert model_columns
     assert isinstance(model_columns, dict)
     

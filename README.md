@@ -140,6 +140,9 @@ Gitlab has similar functionality. Other options are writing the file to a bucket
 | 1.8.x           | ✅ Tested |
 | 1.9.x           | ✅ Tested |
 | 1.10.x          | ✅ Tested |
+| 1.11.x          | ✅ Tested |
+| 1.12.x          | ✅ Tested |
+| 2.0 (Fusion)    | ✅ Tested (preview; generate `catalog.json` with `dbt compile --write-catalog`) |
 
 ### Architecture
 
