@@ -24,6 +24,9 @@ def get_dialect_from_test_data_dir(test_data_dir: str) -> str:
         "1.8": "snowflake",      # dbt 1.8 typically uses snowflake
         "1.9": "snowflake",      # dbt 1.9 typically uses snowflake  
         "1.10": "snowflake",     # dbt 1.10 typically uses snowflake
+        "1.11": "duckdb",        # dbt 1.11 fixture generated with dbt-duckdb
+        "1.12": "duckdb",        # dbt 1.12 fixture generated with dbt-duckdb
+        "2.0": "duckdb",         # dbt Fusion (v2) fixture generated with duckdb
         "bigquery": "bigquery",  # BigQuery data uses bigquery dialect
         "postgres": "postgres",  # PostgreSQL data uses postgres dialect
         "mysql": "mysql",        # MySQL data uses mysql dialect
