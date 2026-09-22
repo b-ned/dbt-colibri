@@ -327,16 +327,16 @@ class DbtColumnLineageExtractor:
 
             # For columns with quote=True in the manifest, wrap the key in
             # double-quotes so SQLGlot's qualifier can match quoted identifiers.
+            # Quote the catalog's spelling, not the YAML one: the catalog holds
+            # what the warehouse actually stores (e.g. Snowflake ``IS_GIFT``
+            # for a YAML ``is_gift``), and that is the case-sensitive
+            # identifier compiled SQL refers to.
             quoted_cols = self._get_quoted_columns(dbt_node.unique_id)
             if quoted_cols:
-                wrapped = {}
-                for col_name, col_type in col_types.items():
-                    if col_name.lower() in quoted_cols:
-                        original = quoted_cols[col_name.lower()]
-                        wrapped[f'"{original}"'] = col_type
-                    else:
-                        wrapped[col_name] = col_type
-                col_types = wrapped
+                col_types = {
+                    (f'"{col_name}"' if col_name.lower() in quoted_cols else col_name): col_type
+                    for col_name, col_type in col_types.items()
+                }
 
             schema_dict[db_name][schema_name][table_name].update(col_types)
 

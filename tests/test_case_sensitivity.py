@@ -436,3 +436,157 @@ class TestCaseInsensitiveDialects:
         col_keys = list(model_lineage.keys())
         assert all(k == k.lower() for k in col_keys), \
             f"[{dialect}] All column keys should be lowercase, got: {col_keys}"
+
+
+def test_snowflake_quoted_parent_column_uses_catalog_casing_for_lineage():
+    """A quoted YAML column must be matched by the spelling the warehouse stores.
+
+    The parent declares ``is_gift`` with ``quote: true`` but Snowflake's
+    catalog stores ``IS_GIFT``. Compiled SQL (e.g. from
+    ``dbt_utils.union_relations``) references ``"IS_GIFT"``, so the SQLGlot
+    schema key must be ``'"IS_GIFT"'``, not ``'"is_gift"'``; otherwise the
+    column cannot be qualified and loses its parent edge.
+    """
+    project = "test_project"
+    empty_parent_id = f"model.{project}.stg_orders__region_a"
+    parent_id = f"model.{project}.stg_orders__region_b"
+    model_id = f"model.{project}.orders_unioned"
+
+    def arm(relation, projections):
+        return (
+            "(\n    select\n        "
+            + ",\n        ".join(projections)
+            + f"\n    from TEST_DB.INTERMEDIATE.{relation.upper()}\n)"
+        )
+
+    compiled_sql = (
+        "with combined as (\n"
+        + arm(
+            "stg_orders__region_a",
+            [
+                'cast("ORDER_ID" as varchar) as "ORDER_ID"',
+                'cast(null as BOOLEAN) as "IS_GIFT"',
+            ],
+        )
+        + "\nunion all\n"
+        + arm(
+            "stg_orders__region_b",
+            [
+                'cast("ORDER_ID" as varchar) as "ORDER_ID"',
+                'cast("IS_GIFT" as BOOLEAN) as "IS_GIFT"',
+            ],
+        )
+        + "\n)\nselect * from combined"
+    )
+
+    def manifest_model(node_id, name, columns, sql="select 1", deps=()):
+        return {
+            "path": f"models/{name}.sql",
+            "original_file_path": f"models/{name}.sql",
+            "resource_type": "model",
+            "compiled_code": sql,
+            "raw_code": sql,
+            "depends_on": {"nodes": list(deps)},
+            "database": "TEST_DB",
+            "schema": "INTERMEDIATE",
+            "name": name,
+            "alias": name,
+            "columns": {
+                col: {
+                    "name": col,
+                    "description": "",
+                    "data_type": None,
+                    "tags": [],
+                    **({"quote": True} if quote else {}),
+                }
+                for col, quote in columns
+            },
+            "relation_name": f"TEST_DB.INTERMEDIATE.{name.upper()}",
+            "config": {"materialized": "table"},
+            "refs": [],
+            "tags": [],
+            "fqn": [project, name],
+        }
+
+    def catalog_node(node_id, name, columns):
+        return {
+            "unique_id": node_id,
+            "metadata": {
+                "database": "TEST_DB",
+                "schema": "INTERMEDIATE",
+                "name": name.upper(),
+                "type": "table",
+            },
+            "columns": {
+                col.upper(): {"type": "BOOLEAN" if col == "is_gift" else "TEXT",
+                              "name": col.upper(), "index": i, "comment": None}
+                for i, col in enumerate(columns, 1)
+            },
+        }
+
+    manifest = {
+        "metadata": {
+            "adapter_type": "snowflake",
+            "dbt_version": "1.10.0",
+            "dbt_schema_version": "https://schemas.getdbt.com/dbt/manifest/v12.json",
+            "invocation_id": "test-fixture",
+            "project_name": project,
+        },
+        "nodes": {
+            empty_parent_id: manifest_model(
+                empty_parent_id, "stg_orders__region_a", [("order_id", False)]
+            ),
+            parent_id: manifest_model(
+                parent_id,
+                "stg_orders__region_b",
+                [("order_id", False), ("is_gift", True)],
+            ),
+            model_id: manifest_model(
+                model_id,
+                "orders_unioned",
+                [("order_id", False), ("is_gift", False)],
+                sql=compiled_sql,
+                deps=(empty_parent_id, parent_id),
+            ),
+        },
+        "sources": {},
+        "exposures": {},
+        "parent_map": {
+            model_id: [empty_parent_id, parent_id],
+            empty_parent_id: [],
+            parent_id: [],
+        },
+        "child_map": {
+            empty_parent_id: [model_id],
+            parent_id: [model_id],
+            model_id: [],
+        },
+    }
+    catalog = {
+        "nodes": {
+            empty_parent_id: catalog_node(
+                empty_parent_id, "stg_orders__region_a", ["order_id"]
+            ),
+            parent_id: catalog_node(
+                parent_id, "stg_orders__region_b", ["order_id", "is_gift"]
+            ),
+            model_id: catalog_node(
+                model_id, "orders_unioned", ["order_id", "is_gift"]
+            ),
+        },
+        "sources": {},
+    }
+
+    with patch("dbt_colibri.utils.json_utils.read_json") as mock:
+        mock.side_effect = [manifest, catalog]
+        extractor = DbtColumnLineageExtractor(
+            manifest_path="dummy", catalog_path="dummy"
+        )
+
+    parents = extractor.extract_project_lineage()["lineage"]["parents"][model_id]
+
+    assert "is_gift" in parents, f"missing is_gift, got: {list(parents)}"
+    parent_edges = {(e["dbt_node"], e["column"]) for e in parents["is_gift"]}
+    # The parent keeps its YAML spelling in the output (quote: true preserves it).
+    assert (parent_id, "is_gift") in parent_edges, \
+        f"is_gift lost its parent edge, got: {parents['is_gift']}"
