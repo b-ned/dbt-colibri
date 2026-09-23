@@ -174,7 +174,7 @@ class DbtColumnLineageExtractor:
                 if col_info.get("quote") is True:
                     quoted[col_name.lower()] = col_name
             if quoted:
-                lookup[node_id] = quoted
+                lookup[node_id.lower()] = quoted
         return lookup
 
     def _get_quoted_columns(self, node_id):
@@ -182,7 +182,8 @@ class DbtColumnLineageExtractor:
         lookup = getattr(self, "_quoted_columns_lookup", None)
         if lookup is None:
             return {}
-        return lookup.get(node_id, {})
+        # Keyed by lowercased id: catalog nodes arrive with a lowercased unique_id.
+        return lookup.get(node_id.lower(), {})
 
     def _resolve_column_name(self, column_name, node_id):
         """Return the properly-cased column name.
@@ -325,12 +326,10 @@ class DbtColumnLineageExtractor:
 
             col_types = dbt_node.get_column_types()
 
-            # For columns with quote=True in the manifest, wrap the key in
-            # double-quotes so SQLGlot's qualifier can match quoted identifiers.
-            # Quote the catalog's spelling, not the YAML one: the catalog holds
-            # what the warehouse actually stores (e.g. Snowflake ``IS_GIFT``
-            # for a YAML ``is_gift``), and that is the case-sensitive
-            # identifier compiled SQL refers to.
+            # Quote columns marked quote=True so SQLGlot matches them
+            # case-sensitively. Use the catalog spelling, not the YAML one: it is
+            # what the warehouse stores (Snowflake/Oracle ``IS_GIFT`` for YAML
+            # ``is_gift``) and what compiled SQL resolves against.
             quoted_cols = self._get_quoted_columns(dbt_node.unique_id)
             if quoted_cols:
                 col_types = {

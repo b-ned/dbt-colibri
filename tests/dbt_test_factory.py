@@ -74,6 +74,8 @@ class ColumnDef:
     data_type: str = "VARCHAR"
     quote: bool = False
     description: str = ""
+    # Catalog spelling, when the warehouse stores something other than ``name``.
+    catalog_name: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -87,6 +89,8 @@ def catalog_column_name(col: ColumnDef, dialect_info: DialectInfo) -> str:
     - Quoted columns preserve their original name on case-sensitive dialects,
       and are lowercased on case-insensitive dialects.
     """
+    if col.catalog_name:
+        return col.catalog_name
     if col.quote and dialect_info.quoted_preserves_case:
         return col.name  # e.g. "quotedCol" stays as-is on Snowflake
     if dialect_info.unquoted_case == "upper":
@@ -104,12 +108,14 @@ def catalog_table_name(name: str, dialect_info: DialectInfo) -> str:
 def compiled_column_ref(col: ColumnDef, dialect_info: DialectInfo) -> str:
     """Return the column reference as it would appear in compiled SQL."""
     if col.quote:
+        # Compiled SQL refers to what the warehouse stores.
+        name = col.catalog_name or col.name
         if dialect_info.name in ("bigquery", "databricks", "starrocks"):
-            return f"`{col.name}`"
+            return f"`{name}`"
         elif dialect_info.name == "tsql":
-            return f"[{col.name}]"
+            return f"[{name}]"
         else:
-            return f'"{col.name}"'
+            return f'"{name}"'
     # Unquoted — use dialect casing
     if dialect_info.unquoted_case == "upper":
         return col.name.upper()
