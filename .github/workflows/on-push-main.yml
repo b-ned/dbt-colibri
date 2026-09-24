@@ -1,0 +1,93 @@
+name: beta-main
+
+# Every merge to main publishes the next beta to Test PyPI and tags it as a
+# GitHub pre-release. Stable releases stay manual (on-release-main.yml).
+
+on:
+  push:
+    branches:
+      - main
+
+# Serialize runs so two quick merges never compute the same beta number.
+concurrency:
+  group: beta-main
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: "pyproject.toml"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Install the project
+        run: uv sync --locked --all-extras --dev
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Test
+        run: uv run pytest tests
+
+  publish-beta:
+    runs-on: ubuntu-latest
+    needs: [test]
+    environment: PRERELEASE
+    permissions:
+      contents: write
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine beta version
+        id: vars
+        run: |
+          # A re-run of an already-released commit must not publish again.
+          if git tag --points-at HEAD | grep -qE '^v[0-9]'; then
+            echo "HEAD is already released, skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=$(python3 scripts/next_beta_version.py)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Python
+        if: steps.vars.outputs.skip != 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: "pyproject.toml"
+
+      - name: Install uv
+        if: steps.vars.outputs.skip != 'true'
+        uses: astral-sh/setup-uv@v6
+
+      - name: Build package
+        if: steps.vars.outputs.skip != 'true'
+        run: |
+          uv version "$VERSION"
+          uv build
+        env:
+          VERSION: ${{ steps.vars.outputs.version }}
+
+      - name: Publish package to Test PyPI
+        if: steps.vars.outputs.skip != 'true'
+        run: uv publish --index testpypi
+        env:
+          UV_PUBLISH_USERNAME: __token__
+          UV_PUBLISH_PASSWORD: ${{ secrets.UV_PUBLISH_TOKEN }}
+
+      # Created with GITHUB_TOKEN, so it does not trigger on-prerelease-main.yml.
+      - name: Create GitHub pre-release
+        if: steps.vars.outputs.skip != 'true'
+        run: gh release create "v$VERSION" --target "$GITHUB_SHA" --title "v$VERSION" --prerelease --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.vars.outputs.version }}
