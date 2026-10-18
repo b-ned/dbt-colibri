@@ -235,7 +235,11 @@ def to_node(
         if index == -1:
             raise ValueError(f"Could not find {column} in {scope.expression}")
 
-        for s in scope.union_scopes:
+        # sqlglot 30 renamed Scope.union_scopes to Scope.set_operation_scopes.
+        set_operation_scopes = getattr(scope, "set_operation_scopes", None)
+        if set_operation_scopes is None:
+            set_operation_scopes = scope.union_scopes
+        for s in set_operation_scopes:
             to_node(
                 index,
                 scope=s,
