@@ -12,6 +12,8 @@ from sqlglot.errors import SqlglotError
 from sqlglot.optimizer import Scope, build_scope, find_all_in_scope, normalize_identifiers, qualify
 from sqlglot.optimizer.scope import ScopeType
 
+from .clickhouse_lookups import lookup_columns
+
 if t.TYPE_CHECKING:
     from sqlglot.dialects.dialect import DialectType
 
@@ -80,6 +82,7 @@ def lineage(
     dialect: DialectType = None,
     scope: t.Optional[Scope] = None,
     trim_selects: bool = True,
+    dictionary_keys: t.Optional[t.Mapping[str, t.Sequence[str]]] = None,
     **kwargs,
 ) -> Node:
     """Build the lineage graph for a column of a SQL query.
@@ -92,6 +95,7 @@ def lineage(
         dialect: The dialect of input SQL.
         scope: A pre-created scope to use instead.
         trim_selects: Whether or not to clean up selects by trimming to only relevant columns.
+        dictionary_keys: Key columns per lowercase dictionary ``db.name``, for ClickHouse dictHas & co.
         **kwargs: Qualification optimizer kwargs.
 
     Returns:
@@ -138,7 +142,7 @@ def lineage(
         else:
             raise SqlglotError(f"Cannot find column '{column}' in query.")
 
-    return to_node(column, scope, dialect, trim_selects=trim_selects)
+    return to_node(column, scope, dialect, trim_selects=trim_selects, dictionary_keys=dictionary_keys)
 
 def classify_column_lineage(select_expr: exp.Expression) -> str:
     """
@@ -183,6 +187,7 @@ def to_node(
     reference_node_name: t.Optional[str] = None,
     trim_selects: bool = True,
     visited: t.Optional[set] = None,  # <-- Add visited set
+    dictionary_keys: t.Optional[t.Mapping[str, t.Sequence[str]]] = None,
 ) -> Node:
     if visited is None:
         visited = set()
@@ -213,7 +218,8 @@ def to_node(
                 source_name=source_name,
                 reference_node_name=reference_node_name,
                 trim_selects=trim_selects,
-                visited=visited
+                visited=visited,
+                dictionary_keys=dictionary_keys,
             )
     if isinstance(scope.expression, exp.SetOperation):
         name = type(scope.expression).__name__.upper()
@@ -245,6 +251,7 @@ def to_node(
                 reference_node_name=reference_node_name,
                 trim_selects=trim_selects,
                 visited=visited,
+                dictionary_keys=dictionary_keys,
             )
         # Aggregate lineage type from children for set operations
         if upstream and upstream.downstream:
@@ -297,6 +304,7 @@ def to_node(
                 upstream=node,
                 trim_selects=trim_selects,
                 visited=visited,
+                dictionary_keys=dictionary_keys,
             )
 
     if select.is_star:
@@ -347,6 +355,7 @@ def to_node(
                 reference_node_name=reference_node_name,
                 trim_selects=trim_selects,
                 visited=visited,
+                dictionary_keys=dictionary_keys,
             )
         else:
             if source and isinstance(source, exp.Table):
@@ -369,6 +378,7 @@ def to_node(
                                 reference_node_name=reference_node_name,
                                 trim_selects=trim_selects,
                                 visited=visited,
+                                dictionary_keys=dictionary_keys,
                             )
                             continue
             
@@ -376,6 +386,8 @@ def to_node(
             node.downstream.append(
                 Node(name=c.sql(comments=False), source=source, expression=source)
             )
+
+    node.downstream.extend(_lookup_nodes(select, scope, dialect, dictionary_keys))
 
     # Aggregate lineage across this node and its children (transformation > rename > pass-through)
     agg_type = lineage_type
@@ -389,7 +401,7 @@ def to_node(
     return node
 
 
-def extract_structural_lineage(scope, dialect, trim_selects=True):
+def extract_structural_lineage(scope, dialect, trim_selects=True, dictionary_keys=None):
     """Extract columns from WHERE/HAVING/JOIN ON and trace them to source tables.
 
     Uses the same recursive to_node() logic as data lineage for CTE resolution.
@@ -411,6 +423,7 @@ def extract_structural_lineage(scope, dialect, trim_selects=True):
                 node = _resolve_structural_column(col, current_scope, dialect, visited, trim_selects)
                 if node:
                     results["filter"].append(node)
+            results["filter"].extend(_lookup_nodes(where, current_scope, dialect, dictionary_keys))
 
         # HAVING columns → filter
         having = expr.args.get("having")
@@ -419,6 +432,7 @@ def extract_structural_lineage(scope, dialect, trim_selects=True):
                 node = _resolve_structural_column(col, current_scope, dialect, visited, trim_selects)
                 if node:
                     results["filter"].append(node)
+            results["filter"].extend(_lookup_nodes(having, current_scope, dialect, dictionary_keys))
 
         # JOIN ON columns → join
         joins = expr.args.get("joins") or []
@@ -429,6 +443,7 @@ def extract_structural_lineage(scope, dialect, trim_selects=True):
                     node = _resolve_structural_column(col, current_scope, dialect, visited, trim_selects)
                     if node:
                         results["join"].append(node)
+                results["join"].extend(_lookup_nodes(on_clause, current_scope, dialect, dictionary_keys))
 
     return results
 
@@ -450,3 +465,11 @@ def _resolve_structural_column(col, scope, dialect, visited, trim_selects):
         # Leaf table → create leaf Node directly
         return Node(name=col.sql(comments=False), source=source, expression=source)
     return None
+
+
+def _lookup_nodes(expression, scope, dialect, dictionary_keys):
+    """Leaf Nodes for the dictionary or Join table columns that lookup calls read."""
+    return [
+        Node(name=f"{table.name}.{column}", source=table, expression=table)
+        for table, column in lookup_columns(expression, scope, dialect, dictionary_keys)
+    ]
