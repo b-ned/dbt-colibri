@@ -59,6 +59,7 @@ class DbtColumnLineageExtractor:
         self._quoted_columns_lookup = self._build_quoted_columns_lookup()
         self.nodes_with_columns = self.build_nodes_with_columns()
         self._table_to_node = {k.lower(): v for k, v in self.nodes_with_columns.items()}
+        self._dictionary_keys = self._build_dictionary_keys()
         # Store references to parent and child maps for easy access
         self.parent_map = self.manifest.get("parent_map", {})
         self.child_map = self.manifest.get("child_map", {})
@@ -279,6 +280,22 @@ class DbtColumnLineageExtractor:
                 merged[relation_name]["columns"] = self.catalog["sources"][node_id]["columns"]
 
         return merged
+
+    def _build_dictionary_keys(self):
+        """Key columns of each dbt-clickhouse dictionary, for dictHas and the hierarchy functions.
+
+        ``primary_key="date, symbol"`` on ``db.rates`` -> ``{"db.rates": ["date", "symbol"]}``
+        """
+        keys = {}
+        for relation_name, info in self._table_to_node.items():
+            config = self.manifest["nodes"].get(info["unique_id"], {}).get("config", {})
+            primary_key = config.get("primary_key")
+            if config.get("materialized") != "dictionary" or not primary_key:
+                continue
+            if isinstance(primary_key, str):
+                primary_key = primary_key.split(",")
+            keys[relation_name] = [column.strip() for column in primary_key]
+        return keys
 
     def build_table_to_node(self):
         """
@@ -820,7 +837,7 @@ class DbtColumnLineageExtractor:
                 continue
         
             try:
-                lineage_node = lineage(normalized_column, qualified_expr, schema=schema, dialect=self.dialect, scope=scope)
+                lineage_node = lineage(normalized_column, qualified_expr, schema=schema, dialect=self.dialect, scope=scope, dictionary_keys=self._dictionary_keys)
                 lineage_map[column_name] = lineage_node
             
             except SqlglotError:
@@ -1272,6 +1289,7 @@ class DbtColumnLineageExtractor:
                             schema=schema,
                             dialect=self.dialect,
                             scope=scope,
+                            dictionary_keys=self._dictionary_keys,
                         )
 
                         for kind, payload in self._walk_with_ephemeral_attribution(lineage_node):
@@ -1330,7 +1348,9 @@ class DbtColumnLineageExtractor:
 
                 # Extract structural lineage (WHERE/HAVING/JOIN ON columns)
                 try:
-                    structural = extract_structural_lineage(scope, self.dialect)
+                    structural = extract_structural_lineage(
+                        scope, self.dialect, dictionary_keys=self._dictionary_keys
+                    )
                     for edge_type, nodes_list in structural.items():
                         if not nodes_list:
                             continue
